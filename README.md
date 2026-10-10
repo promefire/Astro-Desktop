@@ -1,6 +1,6 @@
 # Astro Desktop
 
-面向 `promefire/Astro_Blog` 的 Windows 本地博客工作台。当前为第一阶段：真实项目接入、普通文章 / AI 日报读取、筛选和只读详情。Markdown / MDX 文件是唯一内容来源，没有模拟数据或数据库。
+面向 `promefire/Astro_Blog` 的 Windows 本地博客工作台。支持真实项目接入、普通文章 / AI 日报读取、筛选、只读详情和新建普通文章草稿。Markdown / MDX 文件是唯一内容来源，没有模拟数据或数据库。
 
 客户端仓库：[promefire/Astro-Desktop](https://github.com/promefire/Astro-Desktop)。每完成一项独立功能，验证通过后提交并推送；具体约定见 [AGENTS.md](AGENTS.md)。
 
@@ -16,6 +16,8 @@ npm run dev
 
 开发服务固定使用 `127.0.0.1:5187`。如果端口已占用，命令会明确报错；请关闭自己先前启动的 Astro Desktop 开发会话后重试。
 
+需要并行运行隔离会话时，可设置 `$env:ASTRO_DESKTOP_DEV_PORT = '5188'` 指定其他端口；仍严格检查占用，不会自动回退。E2E 开发测试使用独立空闲端口，保留你已启动的客户端。
+
 首次启动点击「选择博客目录」，选择博客根目录，例如 `F:\blog\Astro_Blog`。目录须包含声明 Astro 依赖的 `package.json`，以及适配的内容目录。客户端不会安装博客依赖，也不会执行博客配置或脚本。关闭后重启会恢复最近项目。
 
 ```powershell
@@ -26,7 +28,7 @@ npm start         # 启动构建后的应用
 npm run test:e2e  # 构建后运行真实 Electron 验证
 ```
 
-E2E 默认读取 `F:\blog\Astro_Blog`；其他位置通过 `$env:ASTRO_BLOG_TEST_PATH = 'D:\你的博客'` 指定。测试使用隔离的客户端配置目录，读取博客前后比较内容文件 SHA-256；不会保存文章、运行博客构建或推送 Git。
+读取 E2E 默认使用 `F:\blog\Astro_Blog`；其他位置通过 `$env:ASTRO_BLOG_TEST_PATH = 'D:\你的博客'` 指定。新建测试仅写入隔离的临时博客，原始博客只读并在前后比较内容 SHA-256；不会运行原博客构建或推送 Git。
 
 要同时运行真实博客服务专项测试：先设置 `ASTRO_BLOG_TEST_PATH`，再执行 `npm test`。没有该变量时，只运行隔离临时目录测试，并明确跳过真实博客专项。
 
@@ -43,10 +45,13 @@ node node_modules/electron/install.js
 - 递归读取 `src/contents/post/**/*.{md,mdx}` 与 `src/contents/ai-daily/**/*.md`。
 - Frontmatter 标题、原始发布日期、分类、标签、普通文章草稿与独立日报属性；异常文件可定位，不阻塞其他文章。
 - 搜索、类型 / 草稿 / 分类 / 标签筛选、排序、分页、源文件与属性只读查看。
+- 新建普通文章：标题必填，标签、单个分类和摘要可选；在真实 post 目录创建 `draft: true` 的 Markdown，同名自动加序号，创建后进入草稿。AI 日报不提供新增。
 - Git 本地状态、当前分支及脱敏远程地址；刷新与系统资源管理器定位。
 - 浅色、深色、跟随系统外观，设置保存在 Electron `userData` 下。
 
-当前不实现创建 / 保存 / 删除文章、编辑器、图片导入、Astro 预览、克隆、Git 同步或发布。相关服务仅保留 TypeScript 接口，不暴露未实现的操作按钮。
+在全部内容、普通文章或草稿页面点击「新建文章」。创建需要博客位于支持硬链接的磁盘（如 NTFS）；失败时保留输入供修正重试。草稿状态遵循原博客规则，不代表原博客所有直接 URL 都会隐藏草稿。
+
+当前不实现已有文章保存 / 删除、编辑器、外部编辑器、图片导入、Astro 预览、统计、克隆、Git 同步或发布。相关服务仅保留 TypeScript 接口，不暴露未实现的操作按钮。下一项为 CodeMirror 与安全保存，完整顺序见 [开发计划](docs/ROADMAP.md)。
 
 ## 目录
 

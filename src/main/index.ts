@@ -72,6 +72,7 @@ function registerHandlers(): void {
   handle(IPC.refreshProject, () => services.projects.refresh())
   handle(IPC.listArticles, () => services.content.list())
   handle(IPC.readArticle, (path) => services.content.read(stringArgument(path)))
+  handle(IPC.createDraft, (input) => services.content.createDraft(input))
   handle(IPC.revealArticle, async (path) => {
     const absolutePath = await services.content.resolveArticlePath(stringArgument(path))
     shell.showItemInFolder(absolutePath)

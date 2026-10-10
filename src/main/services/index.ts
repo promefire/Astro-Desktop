@@ -6,6 +6,7 @@ import { ServiceError, errorMessage } from './errors'
 import { ARTICLE_SIZE_LIMIT, isWithin, normalizedRelative, readBounded, safePath } from './paths'
 import { createSettingsService } from './settings'
 import { readGit } from './git'
+import { createDraft, validateDraftInput } from './drafts'
 
 export { ServiceError } from './errors'
 
@@ -69,6 +70,7 @@ export function createServices(settingsFilePath: string) {
       }),
     },
     content: {
+      createDraft: (input: unknown) => serialProject(() => createDraft(current(), validateDraftInput(input))),
       resolveArticlePath: async (relative: string) => resolve(current(), relative),
       read: async (relative: string) => { const project = current(); return read(project, relative, await readGit(project.path)) },
       list: async (): Promise<ContentIndex> => {

@@ -18,6 +18,9 @@ export interface Article {
 export interface ScanIssue { path: string; message: string }
 export interface ContentIndex { articles: Article[]; issues: ScanIssue[]; scannedAt: string }
 export interface ArticleDocument { article: Article; source: string; body: string; frontmatter: Record<string, unknown>; revision: string }
+export interface CreateDraftInput {
+  projectPath: string; title: string; tags: string[]; category: string; description: string;
+}
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string; code: string }
 export interface DesktopApi {
   getSettings(): Promise<Result<AppSettings>>;
@@ -29,6 +32,7 @@ export interface DesktopApi {
   refreshProject(): Promise<Result<ProjectInfo>>;
   listArticles(): Promise<Result<ContentIndex>>;
   readArticle(relativePath: string): Promise<Result<ArticleDocument>>;
+  createDraft(input: CreateDraftInput): Promise<Result<ArticleDocument>>;
   revealArticle(relativePath: string): Promise<Result<void>>;
   openProjectFolder(): Promise<Result<void>>;
 }
@@ -37,4 +41,5 @@ export const IPC = {
   selectProject: 'project:select', openRecentProject: 'project:open-recent', getProject: 'project:get',
   refreshProject: 'project:refresh', listArticles: 'content:list', readArticle: 'content:read',
   revealArticle: 'content:reveal', openProjectFolder: 'project:reveal',
+  createDraft: 'content:create-draft',
 } as const

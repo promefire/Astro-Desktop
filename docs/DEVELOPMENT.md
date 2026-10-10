@@ -1,4 +1,18 @@
-# 第一阶段开发记录
+# 开发记录
+
+## 2026-10-10：新建普通文章草稿
+
+- 更新 [ROADMAP.md](ROADMAP.md)，纳入主区 CodeMirror 三模式 / 右栏属性、外部编辑器、npm run dev 本地预览与用户选定的简洁文章统计。取消 AI 日报新建 / 专用编辑表单，本轮只交付新建普通草稿。
+- 参考 HexoHub 的 `src/components/create-post-dialog.tsx`（研究快照 `bb39de8`）和用户截图：实现标题必填、标签回车添加、已有分类 / 标签建议、可选摘要。Astro 使用单分类，未加入尚无能力的模板控件。失败时保留表单，成功后转到草稿并选中文件。
+- `src/main/services/drafts.ts` 负责参数校验、Windows 文件名、日期与 YAML 生成、目录校验和不覆盖创建；新增 `content:create-draft`，Preload 只暴露这一特定写入操作。
+- 新建绑定当前 projectPath 并与项目切换串行处理，拒绝过期目标、额外路径 / source / kind 参数和链接目录；并发同名创建用文件系统独占操作分配不同名称。
+- 先完整写入临时文件并 sync，再以硬链接公布目标，支持 NTFS 等硬链接文件系统。文章文本使用 JSON 引号保持 YAML 1.1 下的字符串类型，published 使用本地时间戳以兼容 Astro 日期 schema。
+- 增加服务与 Electron 新建专项，所有写入位于测试临时目录；真实博客继续只读回归。没有为原博客创建测试文章、修改代码、提交或推送。
+- 界面测试发现弹窗显示和卸载后的焦点恢复问题，已改为打开后聚焦标题、关闭后恢复触发按钮。开发测试发现用户已运行的 5187 端口被占用，新增经校验的端口配置，测试选择独立端口，不停止用户会话。
+
+验证结果见 [TESTING.md](TESTING.md)。下一项为 CodeMirror 与防冲突保存；右栏当前的只读源码随该功能一起迁移。
+
+## 第一阶段记录（已完成）
 
 开发与验收日期：2026-10-09 至 2026-10-10，Asia/Shanghai。
 
@@ -43,7 +57,7 @@ Electron 44.7.0、React 19.3、TypeScript 5.9 strict、electron-vite 5、Vite 7�
 
 ## 后续建议
 
-1. CodeMirror 源码编辑、新建 draft:true 普通文章；AI 日报独立表单。
+1. 新建 draft:true 普通文章已完成，继续 CodeMirror 源码编辑；AI 日报独立表单已按最新要求取消。
 2. YAML AST 最小更新，保留未知字段、注释、行尾与 MDX import / 表达式。
 3. 基于 revision 的并发写入检测、原子保存、恢复记录与外部文件变更提示。
 4. 资源导入及文章相对链接，再实现真实 Astro dev 脚本与准确 URL。

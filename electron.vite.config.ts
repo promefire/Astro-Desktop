@@ -5,6 +5,8 @@ import { resolve } from 'node:path'
 import { randomBytes } from 'node:crypto'
 
 const devNonce = randomBytes(24).toString('base64')
+const devPort = process.env.ASTRO_DESKTOP_DEV_PORT === undefined ? 5187 : Number(process.env.ASTRO_DESKTOP_DEV_PORT)
+if (!Number.isInteger(devPort) || devPort < 1 || devPort > 65535) throw new Error('ASTRO_DESKTOP_DEV_PORT 必须是 1–65535 之间的端口号。')
 
 export default defineConfig({
   main: {},
@@ -12,7 +14,7 @@ export default defineConfig({
   renderer: {
     // Explicit IPv4 and a fixed, strict port prevent localhost IPv4/IPv6 ambiguity
     // or Vite port fallback from opening an unrelated local application's page.
-    server: { host: '127.0.0.1', port: 5187, strictPort: true },
+    server: { host: '127.0.0.1', port: devPort, strictPort: true },
     resolve: { alias: { '@': resolve('src/renderer/src') } },
     plugins: [react(), tailwindcss(), {
       name: 'development-csp',

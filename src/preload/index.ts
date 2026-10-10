@@ -13,6 +13,7 @@ const api: DesktopApi = {
   refreshProject: () => ipcRenderer.invoke(IPC.refreshProject),
   listArticles: () => ipcRenderer.invoke(IPC.listArticles),
   readArticle: (path) => ipcRenderer.invoke(IPC.readArticle, path),
+  createDraft: (input) => ipcRenderer.invoke(IPC.createDraft, input),
   revealArticle: (path) => ipcRenderer.invoke(IPC.revealArticle, path),
   openProjectFolder: () => ipcRenderer.invoke(IPC.openProjectFolder),
 }

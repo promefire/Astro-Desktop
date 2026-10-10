@@ -4,10 +4,11 @@ import {
   AlertCircle, ArrowDownUp, ArrowUpRight, BookOpen, Check, ChevronLeft, ChevronRight,
   CircleHelp, Clock3, Code2, File, FileText, Folder, FolderOpen, GitBranch, Layers3,
   LoaderCircle, Monitor, Moon, PanelRightClose, PanelRightOpen, RefreshCw, Search,
-  Settings2, Sparkles, Sun, Tag, Trash2, X,
+  Settings2, Sparkles, Sun, Tag, Trash2, X, Plus,
 } from 'lucide-react'
-import type { AppSettings, Article, ArticleDocument, ContentIndex, DesktopApi, FileStatus, ProjectInfo, Result, Theme } from '../../shared/contracts'
+import type { AppSettings, Article, ArticleDocument, ContentIndex, CreateDraftInput, DesktopApi, FileStatus, ProjectInfo, Result, Theme } from '../../shared/contracts'
 import { Badge, Button, Input, cn } from './components/ui'
+import { CreateDraftDialog } from './components/CreateDraftDialog'
 
 const EMPTY_SETTINGS: AppSettings = { version: 1, theme: 'system', recentProjects: [], lastProjectPath: null }
 const EMPTY_INDEX: ContentIndex = { articles: [], issues: [], scannedAt: '' }
@@ -47,6 +48,9 @@ function App() {
   const [busy, setBusy] = useState(false)
   const [themeBusy, setThemeBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createdNotice, setCreatedNotice] = useState<string | null>(null)
+  const pendingCreatedPath = useRef<string | null>(null)
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [document, setDocument] = useState<ArticleDocument | null>(null)
   const [documentLoading, setDocumentLoading] = useState(false)
@@ -147,6 +151,7 @@ function App() {
       const nextProject = path ? await unwrap(api.openRecentProject(path)) : await unwrap(api.selectProject())
       if (!nextProject || token !== operationId.current) return
       setProject(nextProject)
+      setCreatedNotice(null)
       setIndex(EMPTY_INDEX)
       selectArticle(null)
       setSearch(''); setCategory(''); setTag(''); setPage(1)
@@ -182,6 +187,27 @@ function App() {
     try { await unwrap(action(api)) } catch (cause) { setError(errorMessage(cause)) }
   }
 
+  const createDraft = async (fields: Omit<CreateDraftInput, 'projectPath'>) => {
+    if (!api || !project || busyRef.current) throw new Error('项目正在处理其他操作，请稍后重试。')
+    busyRef.current = true
+    setBusy(true)
+    readId.current += 1
+    try {
+      const created = await unwrap(api.createDraft({ ...fields, projectPath: project.path }))
+      selectArticle(null)
+      setSearch(''); setCategory(''); setTag(''); setPage(1); setSort('modified-desc')
+      setIndex(current => ({ ...current, articles: [created.article, ...current.articles], scannedAt: new Date().toISOString() }))
+      if (view === 'drafts') selectArticle(created.article.relativePath)
+      else pendingCreatedPath.current = created.article.relativePath
+      navigate('/library/drafts')
+      setInspectorOpen(true)
+      setDetailTab('properties')
+      setCreatedNotice(`草稿已创建：${created.article.relativePath}`)
+      setError(null)
+      setCreateOpen(false)
+    } finally { setBusy(false); busyRef.current = false }
+  }
+
   const changeTheme = async (theme: Theme) => {
     if (!api || themeBusy) return
     setThemeBusy(true)
@@ -213,7 +239,11 @@ function App() {
   const counts = useMemo(() => ({ all: index.articles.length, posts: index.articles.filter(article => article.kind === 'post').length, drafts: index.articles.filter(article => article.kind === 'post' && article.draft).length, daily: index.articles.filter(article => article.kind === 'ai-daily').length }), [index.articles])
 
   useEffect(() => { setPage(1) }, [view, search, category, tag, sort])
-  useEffect(() => { setCategory(''); setTag(''); selectArticle(null) }, [view, selectArticle])
+  useEffect(() => {
+    setCategory(''); setTag('')
+    selectArticle(view === 'drafts' ? pendingCreatedPath.current : null)
+    pendingCreatedPath.current = null
+  }, [view, selectArticle])
   useEffect(() => {
     if (selectedPath && !filtered.some(article => article.relativePath === selectedPath)) selectArticle(null)
   }, [filtered, selectedPath, selectArticle])
@@ -250,6 +280,7 @@ function App() {
       </header>
 
       {error && <div className="error-banner" role="alert"><AlertCircle size={17} /><span>{error}</span><Button size="icon" variant="ghost" aria-label="关闭错误提示" onClick={() => setError(null)}><X size={15} /></Button></div>}
+      {createdNotice && <div className="created-banner" role="status"><Check size={17} /><span>{createdNotice}</span><Button size="icon" variant="ghost" aria-label="关闭创建提示" onClick={() => setCreatedNotice(null)}><X size={15} /></Button></div>}
 
       {!api ? <main className="welcome-content"><EmptyState icon={<Monitor size={32} />} title="请在 Astro Desktop 中打开" description="本地文件系统与目录选择需要 Electron 桌面环境。请在项目目录运行 npm run dev 启动桌面应用。" /></main>
         : initializing ? <main className="welcome-content"><EmptyState icon={<LoaderCircle size={28} className="spin" />} title="正在打开工作空间" description="读取本地设置与文章索引…" /></main>
@@ -259,6 +290,7 @@ function App() {
                 <section className="library" aria-label="文章库">
                   <div className="library-heading"><div><div className="heading-overline">内容管理</div><h1>{viewLabels[view]} <span>{viewArticles.length}</span></h1><p>{view === 'daily' ? '独立读取 AI 日报 collection 的内容与字段。' : view === 'drafts' ? '普通文章中标记为 draft: true 的本地内容。' : '从你的 Astro 项目读取 Markdown 与 MDX。'}</p></div><Button size="icon" variant="ghost" onClick={() => setInspectorOpen(!inspectorOpen)} aria-label={inspectorOpen ? '收起文章详情' : '显示文章详情'} title={inspectorOpen ? '收起文章详情' : '显示文章详情'}>{inspectorOpen ? <PanelRightClose size={19} /> : <PanelRightOpen size={19} />}</Button></div>
                   <div className="library-toolbar">
+                    {view !== 'daily' && <Button variant="primary" disabled={busyAll} onClick={() => setCreateOpen(true)}><Plus size={16} />新建文章</Button>}
                     <div className="search-input"><Search size={16} /><Input type="search" placeholder="搜索标题或文件名…" aria-label="搜索文章" value={search} onChange={event => setSearch(event.target.value)} /></div>
                     <label className="sort-select"><ArrowDownUp size={14} /><select aria-label="文章排序" value={sort} onChange={event => setSort(event.target.value as SortOrder)}><option value="published-desc">日期从新到旧</option><option value="published-asc">日期从旧到新</option><option value="modified-desc">最近修改</option><option value="title">标题排序</option></select></label>
                   </div>
@@ -278,8 +310,9 @@ function App() {
                 {inspectorOpen && <ArticleInspector article={selectedArticle} document={document} loading={documentLoading || busy} error={documentError} tab={detailTab} onTab={setDetailTab} onReveal={() => selectedPath && void runAction(desktop => desktop.revealArticle(selectedPath))} />}
               </main>}
 
-      <footer className="statusbar"><div><span className={cn('status-dot', project && 'is-connected')} /><span>{busyAll ? '正在读取本地项目…' : project ? '已连接本地项目' : '尚未连接项目'}</span>{project && <span className="status-path" title={project.path}>{project.path}</span>}</div><div>{index.scannedAt && <span>读取于 {new Date(index.scannedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>}<span>只读模式</span></div></footer>
+      <footer className="statusbar"><div><span className={cn('status-dot', project && 'is-connected')} /><span>{busyAll ? '正在处理本地项目…' : project ? '已连接本地项目' : '尚未连接项目'}</span>{project && <span className="status-path" title={project.path}>{project.path}</span>}</div><div>{index.scannedAt && <span>更新于 {new Date(index.scannedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>}<span>本地内容</span></div></footer>
     </div>
+    {createOpen && project && <CreateDraftDialog categories={[...new Set(index.articles.filter(article => article.kind === 'post').map(article => article.category).filter((value): value is string => !!value))].sort((a, b) => a.localeCompare(b, 'zh-CN'))} availableTags={[...new Set(index.articles.filter(article => article.kind === 'post').flatMap(article => article.tags))].sort((a, b) => a.localeCompare(b, 'zh-CN'))} onCreate={createDraft} onClose={() => setCreateOpen(false)} />}
   </div>
 }
 
