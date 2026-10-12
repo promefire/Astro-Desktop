@@ -1,6 +1,6 @@
 # Astro Desktop
 
-面向 `promefire/Astro_Blog` 的 Windows 本地博客工作台。支持真实项目接入、普通文章 / AI 日报读取、筛选、只读详情和新建普通文章草稿。Markdown / MDX 文件是唯一内容来源，没有模拟数据或数据库。
+面向 `promefire/Astro_Blog` 的 Windows 本地博客工作台。支持真实项目接入、普通文章 / AI 日报读取、新建普通草稿、CodeMirror 编辑、安全保存与恢复。Markdown / MDX 文件是唯一内容来源，没有模拟数据或数据库。
 
 客户端仓库：[promefire/Astro-Desktop](https://github.com/promefire/Astro-Desktop)。每完成一项独立功能，验证通过后提交并推送；具体约定见 [AGENTS.md](AGENTS.md)。
 
@@ -28,7 +28,7 @@ npm start         # 启动构建后的应用
 npm run test:e2e  # 构建后运行真实 Electron 验证
 ```
 
-读取 E2E 默认使用 `F:\blog\Astro_Blog`；其他位置通过 `$env:ASTRO_BLOG_TEST_PATH = 'D:\你的博客'` 指定。新建测试仅写入隔离的临时博客，原始博客只读并在前后比较内容 SHA-256；不会运行原博客构建或推送 Git。
+读取 E2E 默认使用 `F:\blog\Astro_Blog`；其他位置通过 `$env:ASTRO_BLOG_TEST_PATH = 'D:\你的博客'` 指定。新建与编辑测试仅写入隔离的临时博客，原始博客只读并在前后比较内容 SHA-256；不会运行原博客构建或推送 Git。
 
 要同时运行真实博客服务专项测试：先设置 `ASTRO_BLOG_TEST_PATH`，再执行 `npm test`。没有该变量时，只运行隔离临时目录测试，并明确跳过真实博客专项。
 
@@ -44,14 +44,18 @@ node node_modules/electron/install.js
 - 原生目录选择、Astro 项目验证、最近项目、自动恢复及失效目录报错。
 - 递归读取 `src/contents/post/**/*.{md,mdx}` 与 `src/contents/ai-daily/**/*.md`。
 - Frontmatter 标题、原始发布日期、分类、标签、普通文章草稿与独立日报属性；异常文件可定位，不阻塞其他文章。
-- 搜索、类型 / 草稿 / 分类 / 标签筛选、排序、分页、源文件与属性只读查看。
+- 搜索、类型 / 草稿 / 分类 / 标签筛选、排序、分页，右侧显示已保存属性。
+- CodeMirror 源码编辑，源码 / Markdown 基础预览 / 左右分栏；撤销重做、查找替换、Ctrl+S 保存。
+- 检测外部修改并停止覆盖，保存前备份，未保存导航与退出保护，本地编辑恢复记录和另存副本。
 - 新建普通文章：标题必填，标签、单个分类和摘要可选；在真实 post 目录创建 `draft: true` 的 Markdown，同名自动加序号，创建后进入草稿。AI 日报不提供新增。
 - Git 本地状态、当前分支及脱敏远程地址；刷新与系统资源管理器定位。
 - 浅色、深色、跟随系统外观，设置保存在 Electron `userData` 下。
 
 在全部内容、普通文章或草稿页面点击「新建文章」。创建需要博客位于支持硬链接的磁盘（如 NTFS）；失败时保留输入供修正重试。草稿状态遵循原博客规则，不代表原博客所有直接 URL 都会隐藏草稿。
 
-当前不实现已有文章保存 / 删除、编辑器、外部编辑器、图片导入、Astro 预览、统计、克隆、Git 同步或发布。相关服务仅保留 TypeScript 接口，不暴露未实现的操作按钮。下一项为 CodeMirror 与安全保存，完整顺序见 [开发计划](docs/ROADMAP.md)。
+点击文章进入编辑器。右侧属性当前只读，修改标题、分类等需编辑源码中的 Frontmatter；保存成功后更新右栏。基础预览不执行 HTML / MDX，也不加载图片，不等同于完整 Astro 站点。恢复记录在停止输入 600 ms 后写入客户端目录，文章仍需手动保存。详见 [编辑与恢复](docs/EDITOR.md)。
+
+当前不实现文章删除、属性表单、外部编辑器、图片导入、Astro 站点预览、统计、克隆、Git 同步或发布。下一项为外部编辑器，完整顺序见 [开发计划](docs/ROADMAP.md)。
 
 ## 目录
 
@@ -59,9 +63,9 @@ node node_modules/electron/install.js
 src/
   main/                 Electron 主进程、IPC、文件与 Git 服务
     adapters/           promefire Astro Blog 专用适配
-    services/           项目、文章、Frontmatter、设置、路径边界
+    services/           项目、文章、新建、安全保存、恢复、副本、设置、路径边界
   preload/              受限类型化 API 桥接
-  renderer/             React 路由、布局、列表、详情与设置
+  renderer/             React 路由、布局、列表、CodeMirror、预览、详情与设置
   shared/               IPC 数据契约、后续阶段服务接口
 tests/                  单元 / 文件系统集成测试、Electron E2E
 docs/                   需求、架构、研究、功能、开发与测试记录

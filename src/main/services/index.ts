@@ -7,11 +7,13 @@ import { ARTICLE_SIZE_LIMIT, isWithin, normalizedRelative, readBounded, safePath
 import { createSettingsService } from './settings'
 import { readGit } from './git'
 import { createDraft, validateDraftInput } from './drafts'
+import { createEditorService } from './editor'
 
 export { ServiceError } from './errors'
 
 export function createServices(settingsFilePath: string) {
   const settings = createSettingsService(settingsFilePath)
+  const editor = createEditorService(path.join(path.dirname(settingsFilePath), 'editor'))
   let active: ProjectInfo | null = null
   let projectQueue: Promise<unknown> = Promise.resolve()
   function serialProject<T>(operation: () => Promise<T>): Promise<T> {
@@ -70,6 +72,7 @@ export function createServices(settingsFilePath: string) {
       }),
     },
     content: {
+      save: (input: unknown) => serialProject(() => editor.save(current(), input)),
       createDraft: (input: unknown) => serialProject(() => createDraft(current(), validateDraftInput(input))),
       resolveArticlePath: async (relative: string) => resolve(current(), relative),
       read: async (relative: string) => { const project = current(); return read(project, relative, await readGit(project.path)) },
@@ -102,6 +105,12 @@ export function createServices(settingsFilePath: string) {
         index.articles.sort((a, b) => (b.published ?? '').localeCompare(a.published ?? '') || a.relativePath.localeCompare(b.relativePath))
         return index
       },
+    },
+    editor: {
+      checkpoint: (input: unknown) => serialProject(() => editor.checkpoint(current(), input)),
+      getRecovery: (input: unknown) => serialProject(() => editor.get(current(), input)),
+      clearRecovery: (input: unknown) => serialProject(() => editor.clear(current(), input)),
+      listRecoveries: () => serialProject(() => editor.list(current())),
     },
   }
 }

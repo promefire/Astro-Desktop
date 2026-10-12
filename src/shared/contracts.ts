@@ -21,6 +21,11 @@ export interface ArticleDocument { article: Article; source: string; body: strin
 export interface CreateDraftInput {
   projectPath: string; title: string; tags: string[]; category: string; description: string;
 }
+export interface ArticleTarget { projectPath: string; relativePath: string }
+export interface EditorBuffer extends ArticleTarget { source: string; baseRevision: string }
+export interface EditorRecovery extends EditorBuffer { updatedAt: string }
+export interface RecoveryIndex { entries: Array<ArticleTarget & { updatedAt: string }>; issues: string[] }
+export interface SaveArticleResult { document: ArticleDocument; recoveryWarning: string | null }
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string; code: string }
 export interface DesktopApi {
   getSettings(): Promise<Result<AppSettings>>;
@@ -33,6 +38,15 @@ export interface DesktopApi {
   listArticles(): Promise<Result<ContentIndex>>;
   readArticle(relativePath: string): Promise<Result<ArticleDocument>>;
   createDraft(input: CreateDraftInput): Promise<Result<ArticleDocument>>;
+  saveArticle(input: EditorBuffer): Promise<Result<SaveArticleResult>>;
+  checkpointEditor(input: EditorBuffer): Promise<Result<EditorRecovery>>;
+  getEditorRecovery(input: ArticleTarget): Promise<Result<EditorRecovery | null>>;
+  clearEditorRecovery(input: ArticleTarget): Promise<Result<void>>;
+  listEditorRecoveries(): Promise<Result<RecoveryIndex>>;
+  exportEditorCopy(input: { source: string; suggestedName: string }): Promise<Result<string | null>>;
+  setEditorDirty(dirty: boolean): void;
+  onCloseRequested(listener: () => void): () => void;
+  closeWindow(): Promise<Result<void>>;
   revealArticle(relativePath: string): Promise<Result<void>>;
   openProjectFolder(): Promise<Result<void>>;
 }
@@ -42,4 +56,8 @@ export const IPC = {
   refreshProject: 'project:refresh', listArticles: 'content:list', readArticle: 'content:read',
   revealArticle: 'content:reveal', openProjectFolder: 'project:reveal',
   createDraft: 'content:create-draft',
+  saveArticle: 'content:save', checkpointEditor: 'editor:checkpoint', getEditorRecovery: 'editor:recovery',
+  clearEditorRecovery: 'editor:clear-recovery', listEditorRecoveries: 'editor:list-recoveries',
+  setEditorDirty: 'editor:dirty', closeRequested: 'window:close-requested', closeWindow: 'window:close',
+  exportEditorCopy: 'editor:export-copy',
 } as const

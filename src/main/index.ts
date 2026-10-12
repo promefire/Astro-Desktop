@@ -6,6 +6,7 @@ import { realpath } from 'node:fs/promises'
 import { IPC } from '../shared/contracts'
 import type { Result, Theme } from '../shared/contracts'
 import { createServices, ServiceError } from './services'
+import { exportInput, writeEditorCopy } from './services/export-copy'
 
 const runtimeDir = typeof __dirname === 'string' ? __dirname : dirname(fileURLToPath(import.meta.url))
 // Test sessions use a separate profile; packaged builds always use the normal userData directory.
@@ -16,6 +17,7 @@ app.setName('Astro Desktop')
 protocol.registerSchemesAsPrivileged([{ scheme: 'astro-desktop', privileges: { standard: true, secure: true, supportFetchAPI: true } }])
 
 let mainWindow: BrowserWindow | null = null
+let editorDirty = false
 const productionUrl = 'astro-desktop://app/index.html'
 const devUrl = !app.isPackaged ? process.env.ELECTRON_RENDERER_URL : undefined
 if (devUrl && !/^http:\/\/(localhost|127\.0\.0\.1):\d+\/?$/.test(devUrl)) {
@@ -73,6 +75,23 @@ function registerHandlers(): void {
   handle(IPC.listArticles, () => services.content.list())
   handle(IPC.readArticle, (path) => services.content.read(stringArgument(path)))
   handle(IPC.createDraft, (input) => services.content.createDraft(input))
+  handle(IPC.saveArticle, (input) => services.content.save(input))
+  handle(IPC.checkpointEditor, (input) => services.editor.checkpoint(input))
+  handle(IPC.getEditorRecovery, (input) => services.editor.getRecovery(input))
+  handle(IPC.clearEditorRecovery, (input) => services.editor.clearRecovery(input))
+  handle(IPC.listEditorRecoveries, () => services.editor.listRecoveries())
+  handle(IPC.exportEditorCopy, async value => {
+    const input = exportInput(value)
+    if (!mainWindow) throw new Error('主窗口不可用。')
+    const result = await dialog.showSaveDialog(mainWindow, { title: '另存编辑副本', defaultPath: join(app.getPath('documents'), input.suggestedName), filters: [{ name: 'Markdown', extensions: ['md', 'mdx'] }] })
+    if (result.canceled || !result.filePath) return null
+    await writeEditorCopy(result.filePath, input.source)
+    return result.filePath
+  })
+  ipcMain.on(IPC.setEditorDirty, (event, dirty: unknown) => {
+    try { assertTrustedSender(event); if (typeof dirty === 'boolean') editorDirty = dirty } catch { /* Reject untrusted senders. */ }
+  })
+  handle(IPC.closeWindow, async () => { mainWindow?.close() })
   handle(IPC.revealArticle, async (path) => {
     const absolutePath = await services.content.resolveArticlePath(stringArgument(path))
     shell.showItemInFolder(absolutePath)
@@ -117,7 +136,8 @@ async function createWindow(): Promise<void> {
   })
   mainWindow.webContents.on('will-attach-webview', (event) => event.preventDefault())
   mainWindow.once('ready-to-show', () => mainWindow?.show())
-  mainWindow.on('closed', () => { mainWindow = null })
+  mainWindow.on('close', event => { if (editorDirty) { event.preventDefault(); mainWindow?.webContents.send(IPC.closeRequested) } })
+  mainWindow.on('closed', () => { mainWindow = null; editorDirty = false })
   try {
     await mainWindow.loadURL(rendererUrl)
   } catch (error) {

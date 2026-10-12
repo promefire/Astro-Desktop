@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { NavLink, useBlocker, useLocation, useNavigate } from 'react-router-dom'
 import {
   AlertCircle, ArrowDownUp, ArrowUpRight, BookOpen, Check, ChevronLeft, ChevronRight,
-  CircleHelp, Clock3, Code2, File, FileText, Folder, FolderOpen, GitBranch, Layers3,
+  CircleHelp, Clock3, File, FileText, Folder, FolderOpen, GitBranch, Layers3,
   LoaderCircle, Monitor, Moon, PanelRightClose, PanelRightOpen, RefreshCw, Search,
   Settings2, Sparkles, Sun, Tag, Trash2, X, Plus,
 } from 'lucide-react'
-import type { AppSettings, Article, ArticleDocument, ContentIndex, CreateDraftInput, DesktopApi, FileStatus, ProjectInfo, Result, Theme } from '../../shared/contracts'
+import type { AppSettings, Article, ArticleDocument, ContentIndex, CreateDraftInput, DesktopApi, FileStatus, ProjectInfo, RecoveryIndex, Result, Theme } from '../../shared/contracts'
 import { Badge, Button, Input, cn } from './components/ui'
 import { CreateDraftDialog } from './components/CreateDraftDialog'
+import { ArticleEditor, type ArticleEditorHandle } from './components/ArticleEditor'
+import { RecoveriesDialog } from './components/RecoveriesDialog'
+import { Modal } from './components/Modal'
 
 const EMPTY_SETTINGS: AppSettings = { version: 1, theme: 'system', recentProjects: [], lastProjectPath: null }
 const EMPTY_INDEX: ContentIndex = { articles: [], issues: [], scannedAt: '' }
@@ -55,7 +58,15 @@ function App() {
   const [document, setDocument] = useState<ArticleDocument | null>(null)
   const [documentLoading, setDocumentLoading] = useState(false)
   const [documentError, setDocumentError] = useState<string | null>(null)
-  const [detailTab, setDetailTab] = useState<'properties' | 'source'>('properties')
+  const editor = useRef<ArticleEditorHandle>(null)
+  const editorDirty = useRef(false)
+  const [leaveOpen, setLeaveOpen] = useState(false)
+  const [leaving, setLeaving] = useState(false)
+  const leaveAction = useRef<(() => void) | null>(null)
+  const [recoveries, setRecoveries] = useState<RecoveryIndex>({ entries: [], issues: [] })
+  const [recoveriesOpen, setRecoveriesOpen] = useState(false)
+  const [recoveryRefresh, setRecoveryRefresh] = useState(0)
+  const blocker = useBlocker(() => editorDirty.current)
   const [inspectorOpen, setInspectorOpen] = useState(true)
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('')
@@ -71,6 +82,42 @@ function App() {
   const view: LibraryView = rawView && Object.hasOwn(viewLabels, rawView) ? rawView as LibraryView : 'all'
   const isSettings = location.pathname === '/settings'
   const isProjects = location.pathname === '/projects'
+  const reportDirty = useCallback((dirty: boolean) => { editorDirty.current = dirty; api?.setEditorDirty(dirty) }, [api])
+  const requestLeave = (action: () => void) => {
+    if (editor.current?.isBusy()) { setError('文章正在处理操作，请稍后重试。'); return }
+    if (!editorDirty.current) { action(); return }
+    leaveAction.current = action; setLeaveOpen(true)
+  }
+  useEffect(() => {
+    if (blocker.state === 'blocked') {
+      if (editor.current?.isBusy()) { blocker.reset(); return }
+      leaveAction.current = () => blocker.proceed(); setLeaveOpen(true)
+    }
+  }, [blocker])
+  useEffect(() => {
+    if (!api) return
+    const stop = api.onCloseRequested(() => requestLeave(() => void unwrap(api.closeWindow()).catch(cause => setError(errorMessage(cause)))))
+    const protectReload = (event: BeforeUnloadEvent) => { if (editorDirty.current) { event.preventDefault(); event.returnValue = '' } }
+    window.addEventListener('beforeunload', protectReload)
+    return () => { stop(); window.removeEventListener('beforeunload', protectReload) }
+  }, [api])
+  const loadRecoveries = useCallback(async () => {
+    if (!api || !project) return
+    const token = operationId.current
+    try { const records = await unwrap(api.listEditorRecoveries()); if (token === operationId.current) setRecoveries(records) }
+    catch (cause) { if (token === operationId.current) setError(errorMessage(cause)) }
+  }, [api, project?.path])
+  useEffect(() => { setRecoveries({ entries: [], issues: [] }); void loadRecoveries() }, [loadRecoveries])
+  const finishLeave = async (save: boolean) => {
+    setLeaving(true)
+    const done = save ? await editor.current?.save() : await editor.current?.discard()
+    setLeaving(false)
+    if (!done) { setLeaveOpen(false); if (blocker.state === 'blocked') blocker.reset(); return }
+    const action = leaveAction.current
+    leaveAction.current = null; setLeaveOpen(false)
+    action?.()
+  }
+  const cancelLeave = () => { if (leaving) return; setLeaveOpen(false); leaveAction.current = null; if (blocker.state === 'blocked') blocker.reset() }
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-color-scheme: dark)')
@@ -88,7 +135,8 @@ function App() {
     setDocument(null)
     setDocumentError(null)
     setDocumentLoading(!!path)
-  }, [])
+    reportDirty(false)
+  }, [reportDirty])
 
   const applyIndex = useCallback((nextIndex: ContentIndex, keepSelection: boolean) => {
     setIndex(nextIndex)
@@ -138,7 +186,7 @@ function App() {
       if (token === readId.current && projectToken === operationId.current) setDocumentLoading(false)
     })
     return () => { readId.current += 1 }
-  }, [api, selectedPath, busy, index.scannedAt])
+  }, [api, selectedPath, busy, index.scannedAt, recoveryRefresh])
 
   const openProject = async (path?: string) => {
     if (!api || busyRef.current || initializing) return
@@ -160,6 +208,7 @@ function App() {
       if (token !== operationId.current) return
       applyIndex(nextIndex, false)
       setSettings(await unwrap(api.getSettings()))
+      void loadRecoveries()
     } catch (cause) { if (token === operationId.current) setError(errorMessage(cause)) }
     finally { if (token === operationId.current) { setBusy(false); busyRef.current = false } }
   }
@@ -178,6 +227,7 @@ function App() {
       setProject(nextProject)
       const nextIndex = await unwrap(api.listArticles())
       if (token === operationId.current) applyIndex(nextIndex, true)
+      void loadRecoveries()
     } catch (cause) { if (token === operationId.current) setError(errorMessage(cause)) }
     finally { if (token === operationId.current) { setBusy(false); busyRef.current = false } }
   }
@@ -201,7 +251,6 @@ function App() {
       else pendingCreatedPath.current = created.article.relativePath
       navigate('/library/drafts')
       setInspectorOpen(true)
-      setDetailTab('properties')
       setCreatedNotice(`草稿已创建：${created.article.relativePath}`)
       setError(null)
       setCreateOpen(false)
@@ -244,9 +293,6 @@ function App() {
     selectArticle(view === 'drafts' ? pendingCreatedPath.current : null)
     pendingCreatedPath.current = null
   }, [view, selectArticle])
-  useEffect(() => {
-    if (selectedPath && !filtered.some(article => article.relativePath === selectedPath)) selectArticle(null)
-  }, [filtered, selectedPath, selectArticle])
 
   const busyAll = busy || initializing
   const showWelcome = !project || isProjects
@@ -276,7 +322,7 @@ function App() {
     <div className="workspace">
       <header className="topbar">
         <div className="project-context"><FolderOpen size={16} /><span title={project?.path}>{project?.name ?? '工作空间'}</span>{project && <><span className="context-divider">/</span><span className="branch" title={project.git.error ?? '本地 Git 分支'}><GitBranch size={14} />{project.git.branch ?? (project.git.isRepository ? '游离 HEAD' : '非 Git 仓库')}</span></>}</div>
-        <div className="topbar-actions">{project && <Button size="small" variant="ghost" disabled={busyAll} onClick={() => void refresh()} aria-label="刷新文章"><RefreshCw size={15} className={busy ? 'spin' : ''} /><span>刷新</span></Button>}<Button size="small" disabled={!api || busyAll} onClick={() => void openProject()}><FolderOpen size={15} />打开项目</Button></div>
+        <div className="topbar-actions">{project && <>{(recoveries.entries.length > 0 || recoveries.issues.length > 0) && <Button size="small" onClick={() => setRecoveriesOpen(true)}>恢复记录 ({recoveries.entries.length})</Button>}<Button size="small" variant="ghost" disabled={busyAll} onClick={() => requestLeave(() => void refresh())} aria-label="刷新文章"><RefreshCw size={15} className={busy ? 'spin' : ''} /><span>刷新</span></Button></>}<Button size="small" disabled={!api || busyAll} onClick={() => requestLeave(() => void openProject())}><FolderOpen size={15} />打开项目</Button></div>
       </header>
 
       {error && <div className="error-banner" role="alert"><AlertCircle size={17} /><span>{error}</span><Button size="icon" variant="ghost" aria-label="关闭错误提示" onClick={() => setError(null)}><X size={15} /></Button></div>}
@@ -287,7 +333,7 @@ function App() {
           : isSettings ? <SettingsView project={project} settings={settings} themeBusy={themeBusy} onTheme={changeTheme} onOpenFolder={() => void runAction(desktop => desktop.openProjectFolder())} issues={index.issues} onOpenProject={() => void openProject()} busy={busy} />
             : showWelcome ? <WelcomeView settings={settings} project={project} busy={busy} onOpen={() => void openProject()} onRecent={path => void openProject(path)} onForget={path => void forgetProject(path)} onContinue={() => navigate('/library/all')} />
               : <main className="library-layout">
-                <section className="library" aria-label="文章库">
+                <section className="library" aria-label="文章库" hidden={!!selectedPath}>
                   <div className="library-heading"><div><div className="heading-overline">内容管理</div><h1>{viewLabels[view]} <span>{viewArticles.length}</span></h1><p>{view === 'daily' ? '独立读取 AI 日报 collection 的内容与字段。' : view === 'drafts' ? '普通文章中标记为 draft: true 的本地内容。' : '从你的 Astro 项目读取 Markdown 与 MDX。'}</p></div><Button size="icon" variant="ghost" onClick={() => setInspectorOpen(!inspectorOpen)} aria-label={inspectorOpen ? '收起文章详情' : '显示文章详情'} title={inspectorOpen ? '收起文章详情' : '显示文章详情'}>{inspectorOpen ? <PanelRightClose size={19} /> : <PanelRightOpen size={19} />}</Button></div>
                   <div className="library-toolbar">
                     {view !== 'daily' && <Button variant="primary" disabled={busyAll} onClick={() => setCreateOpen(true)}><Plus size={16} />新建文章</Button>}
@@ -307,12 +353,15 @@ function App() {
                   </div>
                   <div className="pagination"><span>{filtered.length ? `${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, filtered.length)}` : '0'} / {filtered.length} 篇</span><div><Button size="icon" variant="ghost" aria-label="上一页" disabled={currentPage <= 1 || busy} onClick={() => setPage(currentPage - 1)}><ChevronLeft size={16} /></Button><span>{currentPage} / {totalPages}</span><Button size="icon" variant="ghost" aria-label="下一页" disabled={currentPage >= totalPages || busy} onClick={() => setPage(currentPage + 1)}><ChevronRight size={16} /></Button></div></div>
                 </section>
-                {inspectorOpen && <ArticleInspector article={selectedArticle} document={document} loading={documentLoading || busy} error={documentError} tab={detailTab} onTab={setDetailTab} onReveal={() => selectedPath && void runAction(desktop => desktop.revealArticle(selectedPath))} />}
+                {selectedPath && (!document || busy || documentLoading ? <section className="editor-loading"><Button onClick={() => selectArticle(null)}><ChevronLeft size={16} />返回列表</Button><EmptyState icon={<FileText size={25} />} title={documentError ? '无法打开文章' : '正在读取文章'} description={documentError ?? '加载原始源码与恢复记录…'} /></section> : <ArticleEditor key={`${project.path}:${selectedPath}`} ref={editor} api={api} projectPath={project.path} document={document} onDirtyChange={reportDirty} onRecoveryChange={() => void loadRecoveries()} onSaved={saved => { setDocument(saved); setIndex(current => ({ ...current, articles: current.articles.map(article => article.relativePath === saved.article.relativePath ? saved.article : article) })) }} onBack={() => requestLeave(() => selectArticle(null))} />)}
+                {inspectorOpen && <ArticleInspector article={selectedArticle} document={document} loading={documentLoading || busy} error={documentError} onReveal={() => selectedPath && void runAction(desktop => desktop.revealArticle(selectedPath))} />}
               </main>}
 
       <footer className="statusbar"><div><span className={cn('status-dot', project && 'is-connected')} /><span>{busyAll ? '正在处理本地项目…' : project ? '已连接本地项目' : '尚未连接项目'}</span>{project && <span className="status-path" title={project.path}>{project.path}</span>}</div><div>{index.scannedAt && <span>更新于 {new Date(index.scannedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>}<span>本地内容</span></div></footer>
     </div>
     {createOpen && project && <CreateDraftDialog categories={[...new Set(index.articles.filter(article => article.kind === 'post').map(article => article.category).filter((value): value is string => !!value))].sort((a, b) => a.localeCompare(b, 'zh-CN'))} availableTags={[...new Set(index.articles.filter(article => article.kind === 'post').flatMap(article => article.tags))].sort((a, b) => a.localeCompare(b, 'zh-CN'))} onCreate={createDraft} onClose={() => setCreateOpen(false)} />}
+    {leaveOpen && <Modal title="文章有未保存的修改" onCancel={cancelLeave}><p>保存后继续，或明确放弃本次修改。保存失败时会留在编辑器。</p><div className="dialog-actions"><Button disabled={leaving} onClick={cancelLeave}>取消</Button><Button disabled={leaving} onClick={() => void finishLeave(false)}>放弃修改</Button><Button disabled={leaving} variant="primary" onClick={() => void finishLeave(true)}>保存并继续</Button></div></Modal>}
+    {recoveriesOpen && api && <RecoveriesDialog api={api} index={recoveries} onClose={() => setRecoveriesOpen(false)} onChanged={() => void loadRecoveries()} onOpen={path => requestLeave(() => { selectArticle(path); setRecoveryRefresh(value => value + 1); if (!location.pathname.startsWith('/library/')) navigate('/library/all') })} />}
   </div>
 }
 
@@ -326,12 +375,11 @@ function WelcomeView({ settings, project, busy, onOpen, onRecent, onForget, onCo
   </div></main>
 }
 
-function ArticleInspector({ article, document, loading, error, tab, onTab, onReveal }: { article: Article | null; document: ArticleDocument | null; loading: boolean; error: string | null; tab: 'properties' | 'source'; onTab: (tab: 'properties' | 'source') => void; onReveal: () => void }) {
+function ArticleInspector({ article, document, loading, error, onReveal }: { article: Article | null; document: ArticleDocument | null; loading: boolean; error: string | null; onReveal: () => void }) {
   const displayed = document?.article ?? article
-  return <aside className="inspector" aria-label="文章详情"><div className="inspector-heading"><h2>文章详情</h2><Badge>只读</Badge></div>{!displayed ? <div className="inspector-placeholder"><div className="document-outline"><FileText size={34} strokeWidth={1.25} /></div><h3>选择一篇内容</h3><p>查看文章属性与原始源码，<br />了解文件中的每一个细节。</p></div> : <>
+  return <aside className="inspector" aria-label="文章详情"><div className="inspector-heading"><h2>文章属性</h2><Badge>已保存版本</Badge></div>{!displayed ? <div className="inspector-placeholder"><div className="document-outline"><FileText size={34} strokeWidth={1.25} /></div><h3>选择一篇内容</h3><p>打开源码编辑器，<br />在这里查看文件属性。</p></div> : <>
     <div className="inspector-title"><Badge tone={displayed.kind === 'ai-daily' ? 'accent' : 'neutral'}>{displayed.kind === 'ai-daily' ? 'AI 日报' : '普通文章'}</Badge><h3>{displayed.title}</h3><button className="file-location" onClick={onReveal} aria-label="在资源管理器中定位文章" title="在资源管理器中定位文章"><FolderOpen size={13} /><span>{displayed.relativePath}</span><ArrowUpRight size={13} /></button></div>
-    <div className="detail-tabs" role="tablist" aria-label="文章详情视图"><button id="properties-tab" role="tab" aria-selected={tab === 'properties'} aria-controls="article-detail-panel" className={cn(tab === 'properties' && 'is-active')} onClick={() => onTab('properties')}><Settings2 size={14} />属性</button><button id="source-tab" role="tab" aria-selected={tab === 'source'} aria-controls="article-detail-panel" className={cn(tab === 'source' && 'is-active')} onClick={() => onTab('source')}><Code2 size={15} />源码</button></div>
-    <div className={cn('inspector-body', tab === 'source' && 'source-body')} id="article-detail-panel" role="tabpanel" aria-labelledby={tab === 'properties' ? 'properties-tab' : 'source-tab'}>{loading ? <div className="detail-feedback"><LoaderCircle size={19} className="spin" /><span>正在读取文件…</span></div> : error ? <div className="detail-feedback is-error" role="alert"><AlertCircle size={19} /><p>{error}</p></div> : tab === 'source' ? document ? <><div className="source-caption"><span>{displayed.extension.slice(1).toUpperCase()} 源文件</span><span>{document.source.split('\n').length} 行</span></div><pre className="source-code" aria-label="文章只读源码" tabIndex={0}><code>{document.source}</code></pre></> : null : <>
+    <div className="inspector-body" role="region" aria-label="文章属性">{loading ? <div className="detail-feedback"><LoaderCircle size={19} className="spin" /><span>正在读取文件…</span></div> : error ? <div className="detail-feedback is-error" role="alert"><AlertCircle size={19} /><p>{error}</p></div> : <>
       <dl className="property-list"><Property label="日期">{dateLabel(displayed.published)}</Property><Property label="分类">{displayed.category ?? '未设置'}</Property><Property label="草稿">{displayed.kind === 'ai-daily' ? '不适用' : displayed.draft === null ? '字段无效' : displayed.draft ? '是' : '否'}</Property><Property label="Git 状态"><Badge tone={displayed.fileStatus === 'conflict' ? 'warning' : 'neutral'}>{statusLabels[displayed.fileStatus]}</Badge></Property>{displayed.kind === 'post' && <Property label="置顶序号">{displayed.top ?? '未设置'}</Property>}<Property label="文件大小">{byteLabel(displayed.size)}</Property><Property label="本地修改">{dateLabel(displayed.modifiedAt, true)}</Property></dl>
       <div className="property-section"><h4>标签</h4><div className="tag-list">{displayed.tags.length ? displayed.tags.map((value, idx) => <Badge key={`${value}-${idx}`}>{value}</Badge>) : <span className="muted">暂无标签</span>}</div></div>
       <div className="property-section"><h4>{displayed.kind === 'ai-daily' ? '日报摘要' : '文章描述'}</h4><p>{(displayed.kind === 'ai-daily' ? displayed.summary : displayed.description) || '暂无内容'}</p></div>

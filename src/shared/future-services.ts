@@ -4,8 +4,7 @@ import type { ArticleDocument, ProjectInfo } from './contracts'
 export interface ContentWriteService {
   // Ordinary draft creation is already available through DesktopApi.createDraft.
   // No AI daily creation or dedicated authoring form is planned.
-  /** Must refuse a save if the current file hash differs from expectedRevision. */
-  save(input: { projectPath: string; relativePath: string; source: string; expectedRevision: string }): Promise<ArticleDocument>
+  // Source saving and editor recovery are implemented in DesktopApi.
   trash(relativePath: string, expectedRevision: string): Promise<{ recoveryId: string }>
   restore(recoveryId: string): Promise<ArticleDocument>
 }
@@ -15,10 +14,6 @@ export interface FrontmatterWriteService {
 }
 export interface AssetService {
   importImage(input: { articlePath: string; sourcePath: string; alt: string }): Promise<{ relativePath: string; markdown: string }>
-}
-export interface EditorRecoveryService {
-  checkpoint(input: { projectPath: string; relativePath: string; source: string; baseRevision: string }): Promise<void>
-  recover(projectPath: string): Promise<Array<{ relativePath: string; source: string; baseRevision: string }>>
 }
 export interface AstroProcessService {
   /** Run npm run dev in the selected project, retaining its pre-script; check Node/npm/dependencies first. */
