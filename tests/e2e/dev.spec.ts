@@ -55,7 +55,9 @@ test('development command starts a desktop window with working React and IPC', a
     // The CLI owns this single Electron process. Closing its only window closes Vite too.
     await Promise.race([new Promise<void>(resolve => child.once('exit', () => resolve())), new Promise<void>(resolve => setTimeout(resolve, 3000))])
     if (child.exitCode === null && child.pid) {
-      if (process.platform === 'win32') execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' })
+      if (process.platform === 'win32') {
+        try { execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }) } catch { /* The window close may already have ended the process. */ }
+      }
       else child.kill()
     }
     await browser?.close()

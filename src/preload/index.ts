@@ -14,6 +14,7 @@ const api: DesktopApi = {
   listArticles: () => ipcRenderer.invoke(IPC.listArticles),
   readArticle: (path) => ipcRenderer.invoke(IPC.readArticle, path),
   createDraft: (input) => ipcRenderer.invoke(IPC.createDraft, input),
+  deleteArticle: (input) => ipcRenderer.invoke(IPC.deleteArticle, input),
   saveArticle: (input) => ipcRenderer.invoke(IPC.saveArticle, input),
   checkpointEditor: (input) => ipcRenderer.invoke(IPC.checkpointEditor, input),
   getEditorRecovery: (input) => ipcRenderer.invoke(IPC.getEditorRecovery, input),

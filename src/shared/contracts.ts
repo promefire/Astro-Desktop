@@ -46,6 +46,7 @@ export interface DesktopApi {
   listArticles(): Promise<Result<ContentIndex>>;
   readArticle(relativePath: string): Promise<Result<ArticleDocument>>;
   createDraft(input: CreateDraftInput): Promise<Result<ArticleDocument>>;
+  deleteArticle(input: ArticleTarget): Promise<Result<{ relativePath: string }>>;
   saveArticle(input: EditorBuffer): Promise<Result<SaveArticleResult>>;
   checkpointEditor(input: EditorBuffer): Promise<Result<EditorRecovery>>;
   getEditorRecovery(input: ArticleTarget): Promise<Result<EditorRecovery | null>>;
@@ -74,7 +75,7 @@ export const IPC = {
   selectProject: 'project:select', openRecentProject: 'project:open-recent', getProject: 'project:get',
   refreshProject: 'project:refresh', listArticles: 'content:list', readArticle: 'content:read',
   revealArticle: 'content:reveal', openProjectFolder: 'project:reveal',
-  createDraft: 'content:create-draft',
+  createDraft: 'content:create-draft', deleteArticle: 'content:delete',
   saveArticle: 'content:save', checkpointEditor: 'editor:checkpoint', getEditorRecovery: 'editor:recovery',
   clearEditorRecovery: 'editor:clear-recovery', listEditorRecoveries: 'editor:list-recoveries',
   setEditorDirty: 'editor:dirty', closeRequested: 'window:close-requested', closeWindow: 'window:close',

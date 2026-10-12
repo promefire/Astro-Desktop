@@ -7,6 +7,7 @@ import { ARTICLE_SIZE_LIMIT, isWithin, normalizedRelative, readBounded, safePath
 import { createSettingsService } from './settings'
 import { readGit } from './git'
 import { createDraft, validateDraftInput } from './drafts'
+import { deleteArticleInput, removeArticleFile } from './delete-article'
 import { createEditorService } from './editor'
 import { inspectDefaultEditors, missingAssociationMessage, openWithDefaultApp, type DefaultPathOpener, type RegistryQuery } from './external-editor'
 import { createPreviewService } from './preview'
@@ -83,6 +84,13 @@ export function createServices(settingsFilePath: string) {
     content: {
       save: (input: unknown) => serialProject(() => editor.save(current(), input)),
       createDraft: (input: unknown) => serialProject(() => createDraft(current(), validateDraftInput(input))),
+      deleteArticle: (input: unknown) => serialProject(async () => {
+        const project = current()
+        const target = deleteArticleInput(project, input)
+        await removeArticleFile(project, target.relativePath)
+        try { await editor.clear(project, target) } catch { /* The article file is already gone. */ }
+        return { relativePath: target.relativePath }
+      }),
       resolveArticlePath: async (relative: string) => resolve(current(), relative),
       read: async (relative: string) => { const project = current(); return read(project, relative, await readGit(project.path)) },
       list: async (): Promise<ContentIndex> => {

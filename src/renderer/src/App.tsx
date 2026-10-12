@@ -15,6 +15,7 @@ import { RecoveriesDialog } from './components/RecoveriesDialog'
 import { ExternalEditorSettings } from './components/ExternalEditorSettings'
 import { PreviewPanel } from './components/PreviewPanel'
 import { StatsView } from './components/StatsView'
+import { ArticleListRow } from './components/ArticleListRow'
 import { Modal } from './components/Modal'
 
 const EMPTY_SETTINGS: AppSettings = { version: 1, theme: 'system', recentProjects: [], lastProjectPath: null, previewRuntime: { nodePath: null, npmPath: null } }
@@ -80,6 +81,10 @@ function App() {
   const pendingQuery = useRef<LibraryQuery | null>(null)
   const [sort, setSort] = useState<SortOrder>('published-desc')
   const [page, setPage] = useState(1)
+  const [menuPath, setMenuPath] = useState<string | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<Article | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const operationId = useRef(0)
   const readId = useRef(0)
   const busyRef = useRef(false)
@@ -271,6 +276,21 @@ function App() {
     } finally { setBusy(false); busyRef.current = false }
   }
 
+  const confirmDelete = async () => {
+    if (!api || !project || !pendingDelete || deleting) return
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      const removed = pendingDelete.relativePath
+      await unwrap(api.deleteArticle({ projectPath: project.path, relativePath: removed }))
+      setPendingDelete(null)
+      setIndex(current => ({ ...current, articles: current.articles.filter(article => article.relativePath !== removed), scannedAt: new Date().toISOString() }))
+      if (selectedRef.current === removed) selectArticle(null)
+      void loadRecoveries()
+    } catch (cause) { setDeleteError(errorMessage(cause)) }
+    finally { setDeleting(false) }
+  }
+
   const changeTheme = async (theme: Theme) => {
     if (!api || themeBusy) return
     setThemeBusy(true)
@@ -312,6 +332,7 @@ function App() {
   }
 
   useEffect(() => { setPage(1) }, [view, search, categoryFilter, tagFilter, sort])
+  useEffect(() => { setMenuPath(null) }, [location.pathname, page, search])
   useEffect(() => {
     const pending = pendingQuery.current
     pendingQuery.current = null
@@ -372,12 +393,9 @@ function App() {
                   <div className="filter-toolbar"><label className="filter-select"><Folder size={14} /><select aria-label="按分类筛选" value={categorySelectValue(categoryFilter)} onChange={event => setCategoryFilter(categoryFromSelect(event.target.value))}><option value="">全部分类</option><option value="missing">未填写分类</option>{categories.map(value => <option key={value} value={categorySelectValue({ type: 'name', name: value })}>{value}</option>)}</select></label><label className="filter-select"><Tag size={14} /><select aria-label="按标签筛选" value={tagSelectValue(tagFilter)} onChange={event => setTagFilter(tagFromSelect(event.target.value))}><option value="">全部标签</option>{tagFilter.type === 'untagged' && <option value="untagged">无标签（不是标签名）</option>}{tags.map(value => <option key={value} value={tagSelectValue({ type: 'name', name: value })}>{value}</option>)}</select></label>{(search || categoryFilter.type !== 'all' || tagFilter.type !== 'all') && <Button size="small" variant="ghost" onClick={() => { setSearch(''); setCategoryFilter({ type: 'all' }); setTagFilter({ type: 'all' }) }}>清除筛选</Button>}<span className="filter-total">{filtered.length} 篇内容</span></div>
                   {index.issues.length > 0 && <button className="scan-warning" onClick={() => navigate('/settings')}><AlertCircle size={15} /><span>读取时发现 {index.issues.length} 项问题，查看详情</span><ChevronRight size={14} /></button>}
                   <div className="article-table" aria-busy={busy}>
-                    <div className="table-head"><span>文章</span><span>日期</span><span className="category-cell">分类</span><span>本地状态</span></div>
+                    <div className="table-head"><span>文章</span><span>日期</span><span className="category-cell">分类</span><span>本地状态</span><span className="article-actions-head" /></div>
                     <div className="table-body">
-                      {busy ? <EmptyState compact icon={<LoaderCircle size={25} className="spin" />} title="正在读取文章" description="扫描本地文件与 Git 状态…" /> : pageArticles.length === 0 ? <EmptyState compact icon={<Search size={26} />} title={search || categoryFilter.type !== 'all' || tagFilter.type !== 'all' ? '没有匹配的内容' : '这里还没有内容'} description={search || categoryFilter.type !== 'all' || tagFilter.type !== 'all' ? '试试其他关键词，或清除当前筛选条件。' : '此内容目录没有可读取的文章，添加文件后点击刷新。'} /> : pageArticles.map(article => <button key={article.id} className={cn('article-row', selectedPath === article.relativePath && 'is-selected')} onClick={() => { selectArticle(article.relativePath); setInspectorOpen(true) }} aria-label={`查看文章：${article.title}`} aria-pressed={selectedPath === article.relativePath}>
-                        <div className="article-main"><span className={cn('article-icon', article.kind === 'ai-daily' && 'is-daily')}>{article.kind === 'ai-daily' ? <Sparkles size={17} /> : <FileText size={17} />}</span><span className="article-main-text"><span className="article-title" title={article.title}>{article.title}{article.issues.length > 0 && <AlertCircle size={13} className="issue-mark" />}</span><span className="article-subtitle"><span>{kindLabel(article)}</span><span className="subtitle-separator">·</span><span className="article-tags">{article.tags.length ? article.tags.join(' / ') : article.extension.toUpperCase().slice(1)}</span></span></span></div>
-                        <span className="date-cell">{dateLabel(article.published)}</span><span className="category-cell" title={article.category ?? ''}>{article.category ?? '未分类'}</span><span><Badge tone={article.fileStatus === 'conflict' || article.issues.length ? 'warning' : article.fileStatus === 'clean' || article.fileStatus === 'unknown' ? 'neutral' : 'accent'}>{statusLabels[article.fileStatus]}</Badge></span>
-                      </button>)}
+                      {busy ? <EmptyState compact icon={<LoaderCircle size={25} className="spin" />} title="正在读取文章" description="扫描本地文件与 Git 状态…" /> : pageArticles.length === 0 ? <EmptyState compact icon={<Search size={26} />} title={search || categoryFilter.type !== 'all' || tagFilter.type !== 'all' ? '没有匹配的内容' : '这里还没有内容'} description={search || categoryFilter.type !== 'all' || tagFilter.type !== 'all' ? '试试其他关键词，或清除当前筛选条件。' : '此内容目录没有可读取的文章，添加文件后点击刷新。'} /> : pageArticles.map(article => <ArticleListRow key={article.id} article={article} selected={selectedPath === article.relativePath} menuOpen={menuPath === article.relativePath} kindLabel={kindLabel(article)} statusLabel={statusLabels[article.fileStatus]} dateLabel={dateLabel(article.published)} onOpen={() => { setMenuPath(null); selectArticle(article.relativePath); setInspectorOpen(true) }} onToggleMenu={() => setMenuPath(current => current === article.relativePath ? null : article.relativePath)} onDelete={() => { setMenuPath(null); setDeleteError(null); setPendingDelete(article) }} />)}
                     </div>
                   </div>
                   <div className="pagination"><span>{filtered.length ? `${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, filtered.length)}` : '0'} / {filtered.length} 篇</span><div><Button size="icon" variant="ghost" aria-label="上一页" disabled={currentPage <= 1 || busy} onClick={() => setPage(currentPage - 1)}><ChevronLeft size={16} /></Button><span>{currentPage} / {totalPages}</span><Button size="icon" variant="ghost" aria-label="下一页" disabled={currentPage >= totalPages || busy} onClick={() => setPage(currentPage + 1)}><ChevronRight size={16} /></Button></div></div>
@@ -389,6 +407,7 @@ function App() {
       <footer className="statusbar"><div><span className={cn('status-dot', project && 'is-connected')} /><span>{busyAll ? '正在处理本地项目…' : project ? '已连接本地项目' : '尚未连接项目'}</span>{project && <span className="status-path" title={project.path}>{project.path}</span>}</div><div>{index.scannedAt && <span>更新于 {new Date(index.scannedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>}<span>本地内容</span></div></footer>
     </div>
     {createOpen && project && <CreateDraftDialog categories={[...new Set(index.articles.filter(article => article.kind !== 'ai-daily').map(article => article.category).filter((value): value is string => !!value))].sort((a, b) => a.localeCompare(b, 'zh-CN'))} availableTags={[...new Set(index.articles.filter(article => article.kind !== 'ai-daily').flatMap(article => article.tags))].sort((a, b) => a.localeCompare(b, 'zh-CN'))} onCreate={createDraft} onClose={() => setCreateOpen(false)} />}
+    {pendingDelete && <Modal title="确认删除文章" onCancel={() => { if (!deleting) setPendingDelete(null) }}><p>将从磁盘删除「{pendingDelete.title}」。</p><p><code>{pendingDelete.relativePath}</code></p><p>文件会被直接移除。应用不会保留副本，也不能在这里撤销。未保存的恢复记录会一并清除。</p>{deleteError && <p role="alert">{deleteError}</p>}<div className="dialog-actions"><Button disabled={deleting} onClick={() => setPendingDelete(null)}>取消</Button><Button className="button-danger" disabled={deleting} onClick={() => void confirmDelete()}>{deleting ? '正在删除…' : '确认删除'}</Button></div></Modal>}
     {leaveOpen && <Modal title="文章有未保存的修改" onCancel={cancelLeave}><p>保存后继续，或明确放弃本次修改。保存失败时会留在编辑器。</p><div className="dialog-actions"><Button disabled={leaving} onClick={cancelLeave}>取消</Button><Button disabled={leaving} onClick={() => void finishLeave(false)}>放弃修改</Button><Button disabled={leaving} variant="primary" onClick={() => void finishLeave(true)}>保存并继续</Button></div></Modal>}
     {recoveriesOpen && api && <RecoveriesDialog api={api} index={recoveries} onClose={() => setRecoveriesOpen(false)} onChanged={() => void loadRecoveries()} onOpen={path => requestLeave(() => { selectArticle(path); setRecoveryRefresh(value => value + 1); if (!location.pathname.startsWith('/library/')) navigate('/library/all') })} />}
     {previewOpen && api && <PreviewPanel api={api} onClose={() => setPreviewOpen(false)} />}

@@ -105,7 +105,7 @@ test('real blog: secure IPC, metadata, UI filters, source fidelity and restart p
     await page.getByRole('button', { name: '上一页', exact: true }).click()
     await page.getByLabel('文章排序').selectOption('published-asc')
     const oldest = [...index.data.articles].sort((a, b) => (a.published ?? '').localeCompare(b.published ?? ''))[0]
-    await expect(page.locator('.article-row').first()).toHaveAccessibleName(`查看文章：${oldest.title}`)
+    await expect(page.locator('.article-row').first().getByRole('button', { name: `查看文章：${oldest.title}`, exact: true })).toBeVisible()
     await page.getByLabel('文章排序').selectOption('published-desc')
     await page.locator('a[href="#/library/daily"]').click()
     await expect(page.locator('.article-row')).toHaveCount(expectedDaily)

@@ -2,7 +2,8 @@
 import type { ArticleDocument, ProjectInfo } from './contracts'
 
 export interface ContentWriteService {
-  // Ordinary draft creation is already available through DesktopApi.createDraft.
+  // Ordinary draft creation and permanent article deletion are on DesktopApi.
+  // Trash and restore are not implemented.
   // No AI daily creation or dedicated authoring form is planned.
   // Source saving and editor recovery are implemented in DesktopApi.
   trash(relativePath: string, expectedRevision: string): Promise<{ recoveryId: string }>

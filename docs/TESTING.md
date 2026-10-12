@@ -1,5 +1,15 @@
 # 测试记录
 
+## 2026-10-12：列表删除文章
+
+本次结果：TypeScript strict 通过；设置真实博客变量后 **59 / 59** 个单元 / 文件系统测试通过（11 个文件）；Main / Preload / Renderer 构建通过；完整 Electron E2E **9 / 9** 通过；依赖审计 **0** 个已知漏洞。没有修改 `F:\blog\Astro_Blog`。
+
+命令：`npm run typecheck`、`$env:ASTRO_BLOG_TEST_PATH = 'F:\blog\Astro_Blog'; npm test`、`npm run test:e2e`（含构建）、`npm audit`。
+
+新增 `tests/delete-article.test.ts`：只删除选中的草稿文件，并清掉它的恢复记录；同项目的正文和日报保留。硬链接、名为文章的目录、目录联接、路径穿越和切换后的旧项目请求都会拒绝，原文件仍在。
+
+新增 `tests/e2e/delete.spec.ts`：隔离临时博客中，三点菜单打开删除项；取消和 Esc 不改文件；确认后该草稿从列表和磁盘消失，另一篇正文保留。
+
 ## 2026-10-12：简洁文章统计
 
 本次结果：TypeScript strict 通过；设置真实博客变量后 **57 / 57** 个单元 / 文件系统测试通过（10 个文件）；Main / Preload / Renderer 构建通过；完整 Electron E2E **8 / 8** 通过；依赖审计 **0** 个已知漏洞。没有新增依赖。没有修改 `F:\blog\Astro_Blog` 的文件，也没有执行它的 dev、commit 或 push。

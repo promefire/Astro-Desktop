@@ -76,6 +76,7 @@ function registerHandlers(): void {
   handle(IPC.listArticles, () => services.content.list())
   handle(IPC.readArticle, (path) => services.content.read(stringArgument(path)))
   handle(IPC.createDraft, (input) => services.content.createDraft(input))
+  handle(IPC.deleteArticle, (input) => services.content.deleteArticle(input))
   handle(IPC.saveArticle, (input) => services.content.save(input))
   handle(IPC.checkpointEditor, (input) => services.editor.checkpoint(input))
   handle(IPC.getEditorRecovery, (input) => services.editor.getRecovery(input))
