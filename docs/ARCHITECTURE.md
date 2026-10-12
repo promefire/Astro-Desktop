@@ -10,7 +10,7 @@ React Renderer 只调用 `window.astroDesktop`。Preload 使用 `contextBridge` 
 
 1. 原生目录选择获得项目授权；最近项目仅可从客户端持久化的已授权记录打开。
 2. ProjectService 校验 package.json、Astro 依赖与专用内容目录。配置 TS / JS 只作为博客代码保留，不执行。
-3. AstroBlogAdapter 固定两种集合的目录、扩展名及属性规则。
+3. AstroBlogAdapter 固定正文、草稿和 AI 日报三个目录的扩展名及属性规则。
 4. ContentService 递归扫描；FrontmatterService 安全解析 YAML，保留 source、body、未知字段与 revision。
 5. GitService 通过参数化系统 Git CLI 读取本地分支、远程和 porcelain 状态。无 Git 或失败时显示未知状态，不能伪造 clean。
 6. Renderer 进行展示筛选；CodeMirror 维护原始源码，Markdown 基础预览不执行 HTML / MDX，不访问文章外部资源。
@@ -19,13 +19,13 @@ React Renderer 只调用 `window.astroDesktop`。Preload 使用 `contextBridge` 
 
 ## 配置与副作用
 
-客户端设置写入自身 `userData/settings.json`，使用原子替换与串行化更新。用户显式创建普通文章时写一个 post 草稿文件，显式保存时替换对应文章；不修改 Git index，不 fetch / commit / push。最近项目最多十个，记录路径、名称和上次打开时间。配置损坏应保留并提示，不覆盖为默认值。
+客户端设置写入自身 `userData/settings.json`，使用原子替换与串行化更新。用户显式创建草稿时写入 `src/contents/drafts` 下一个文件，显式保存时替换对应文章；不修改 Git index，不 fetch / commit / push。最近项目最多十个，记录路径、名称和上次打开时间。配置损坏应保留并提示，不覆盖为默认值。
 
 `content:create-draft` 参数限于 projectPath、title、tags、category、description，不接受目标路径、source 或内容类型。服务校验项目是否仍活动，复核真实目录，拒绝目录链接，生成 Windows 文件名。日期采用本地时间的 YAML 时间戳，其他文本使用兼容 YAML 的 JSON 引号，防止 `on` / `true` / 日期形标签被解释成其他类型。项目切换、新建、保存和编辑恢复共用队列，过期项目请求被拒绝。
 
 新建先 `open(wx)` 独占临时文件、写入 / sync / 关闭，再通过 [Node fsPromises.link](https://nodejs.org/api/fs.html#fspromiseslinkexistingpath-newpath) 创建目标名称。同名失败时重试带序号名称，不以覆盖性 rename 回退。最后只移除自己创建的临时文件；被杀进程或文件锁可能留下 `.tmp`（不参与文章读取）。此策略需要硬链接支持，已有文件、同名目录和并行新建有测试覆盖。不能保证抵御同机恶意进程持续更换目录的文件系统竞态攻击。
 
-发布日期保留文档日期语义，不用 UTC 转换导致日期跨天。正文与草稿使用同一套文章字段，但 `kind` 来自目录：`src/contents/post`、`src/contents/drafts`、`src/contents/ai-daily`。Frontmatter 的 `draft` 只按原值保留，缺失时为未设置，无效时报告字段问题，不把文章改列入另一个目录。当前博客的 Astro 集合没有 drafts，本地预览因此不为草稿生成地址。每次刷新重新读磁盘；本阶段无自动文件监听。
+发布日期保留文档日期语义，不用 UTC 转换导致日期跨天。正文与草稿使用同一套文章字段，但 `kind` 来自目录：`src/contents/post`、`src/contents/drafts`、`src/contents/ai-daily`。Frontmatter 的 `draft` 只按原值保留，缺失时为未设置，无效时报告字段问题，不把文章改列入另一个目录。当前博客的 Astro 集合没有 drafts，本地预览因此不为草稿生成地址。每次刷新重新读磁盘；本阶段无自动文件监听。文章统计是对这份索引的只读聚合，计算在 `src/shared/article-stats.ts`，不另建统计库，也不把未保存编辑区计入。切换项目时先清空索引，过期响应不能写回新项目。口径见 [STATS.md](STATS.md)。
 
 ## 下一阶段接口
 

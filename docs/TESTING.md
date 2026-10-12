@@ -1,5 +1,19 @@
 # 测试记录
 
+## 2026-10-12：简洁文章统计
+
+本次结果：TypeScript strict 通过；设置真实博客变量后 **57 / 57** 个单元 / 文件系统测试通过（10 个文件）；Main / Preload / Renderer 构建通过；完整 Electron E2E **8 / 8** 通过；依赖审计 **0** 个已知漏洞。没有新增依赖。没有修改 `F:\blog\Astro_Blog` 的文件，也没有执行它的 dev、commit 或 push。
+
+命令：`npm run typecheck`、`$env:ASTRO_BLOG_TEST_PATH = 'F:\blog\Astro_Blog'; npm test`、`npm run test:e2e`（含构建，临时目录设为 `F:\tmp`）、`npm audit`。
+
+新增 `tests/article-stats.test.ts`：正文、草稿、日报按目录互斥；`post` 中的 `draft: true`、`drafts` 中的 `draft: false` 和无 `draft` 字段不改变分类。分类和标签只统计正文与草稿。重复标签只计一次，大小写不同的标签不合并。未填写 category 与名为「未分类」的分类分开。无效 category / tags 不计入排行，也不算作未分类或无标签。数量相同按名称稳定排序。筛选结果数量与统计相同。空项目只保留读取失败数。
+
+新增 `tests/e2e/stats.spec.ts`：隔离临时博客中，Electron 读取三个目录并打开对应列表。点击分类、标签和无标签后的筛选数量与统计一致，筛选可清除。未保存修改取消后不改文件、不改变统计；保存分类后排行更新。新建草稿后草稿数和分类数更新。外部新增文件在刷新前不计入，刷新后计入。切换项目后不再显示上一项目的数量；缺失的草稿目录单独提示。1000×680 的浅色 / 深色截图在 `docs/images/stats-light.png` 与 `docs/images/stats-dark.png`，路径位于 `F:\tmp`。
+
+预览进程测试清理临时目录时，Windows 可能短暂返回 EBUSY。清理增加了有限次重试，避免把已结束的进程记成测试失败。
+
+已在本机 Windows 验证。统计不监听文件变化，不请求远程分析，也不表示文章已经发布。
+
 ## 2026-10-12：按目录区分正文与草稿
 
 本次结果：TypeScript strict 通过；设置真实博客变量后 **54 / 54** 个单元 / 文件系统测试通过（9 个文件）；Main / Preload / Renderer 构建通过；完整 Electron E2E **7 / 7** 通过；依赖审计 **0** 个已知漏洞。没有新增依赖。没有修改 `F:\blog\Astro_Blog` 的文件，也没有执行它的 dev、commit 或 push。

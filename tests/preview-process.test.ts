@@ -12,7 +12,7 @@ afterEach(async () => {
   delete process.env.ELECTRON_RUN_AS_NODE
   for (const cleanup of cleanups.splice(0)) await cleanup().catch(() => undefined)
   for (const root of roots.splice(0)) {
-    if (path.resolve(root).startsWith(path.resolve(tmpdir()) + path.sep)) await rm(root, { recursive: true, force: true })
+    if (path.resolve(root).startsWith(path.resolve(tmpdir()) + path.sep)) await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 150 })
   }
 })
 

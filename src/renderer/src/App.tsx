@@ -1,26 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useBlocker, useLocation, useNavigate } from 'react-router-dom'
 import {
-  AlertCircle, ArrowDownUp, ArrowUpRight, BookOpen, Check, ChevronLeft, ChevronRight,
+  AlertCircle, ArrowDownUp, ArrowUpRight, BookOpen, ChartColumn, Check, ChevronLeft, ChevronRight,
   CircleHelp, Clock3, File, FileText, Folder, FolderOpen, GitBranch, Globe, Layers3,
   LoaderCircle, Monitor, Moon, PanelRightClose, PanelRightOpen, RefreshCw, Search,
   Settings2, Sparkles, Sun, Tag, Trash2, X, Plus,
 } from 'lucide-react'
 import type { AppSettings, Article, ArticleDocument, ContentIndex, CreateDraftInput, DesktopApi, FileStatus, PreviewPhase, ProjectInfo, RecoveryIndex, Result, Theme } from '../../shared/contracts'
+import { categoryFromSelect, categorySelectValue, matchesArticle, summarize, tagFromSelect, tagSelectValue, type CategoryFilter, type LibraryQuery, type LibraryView, type TagFilter } from '../../shared/article-stats'
 import { Badge, Button, Input, cn } from './components/ui'
 import { CreateDraftDialog } from './components/CreateDraftDialog'
 import { ArticleEditor, type ArticleEditorHandle } from './components/ArticleEditor'
 import { RecoveriesDialog } from './components/RecoveriesDialog'
 import { ExternalEditorSettings } from './components/ExternalEditorSettings'
 import { PreviewPanel } from './components/PreviewPanel'
+import { StatsView } from './components/StatsView'
 import { Modal } from './components/Modal'
 
 const EMPTY_SETTINGS: AppSettings = { version: 1, theme: 'system', recentProjects: [], lastProjectPath: null, previewRuntime: { nodePath: null, npmPath: null } }
 const EMPTY_INDEX: ContentIndex = { articles: [], issues: [], scannedAt: '' }
 const PAGE_SIZE = 12
-type LibraryView = 'all' | 'posts' | 'drafts' | 'daily'
 type SortOrder = 'published-desc' | 'published-asc' | 'modified-desc' | 'title'
-const viewLabels: Record<LibraryView, string> = { all: '全部内容', posts: '正文', drafts: '草稿', daily: 'AI 日报' }
+const viewLabels: Record<LibraryView, string> = { all: '全部内容', posts: '正文', drafts: '草稿', daily: 'AI 日报', writing: '正文和草稿' }
 function kindLabel(article: Article): string {
   if (article.kind === 'ai-daily') return 'AI 日报'
   if (article.kind === 'draft') return '草稿'
@@ -43,10 +44,6 @@ function dateLabel(value: string | null, withTime = false): string {
     : value.slice(0, 10)
 }
 function byteLabel(bytes: number) { return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB` }
-function matchesView(article: Article, view: LibraryView) {
-  return view === 'all' || (view === 'posts' && article.kind === 'post') || (view === 'drafts' && article.kind === 'draft') || (view === 'daily' && article.kind === 'ai-daily')
-}
-
 function App() {
   const api = window.astroDesktop
   const navigate = useNavigate()
@@ -78,8 +75,9 @@ function App() {
   const blocker = useBlocker(() => editorDirty.current)
   const [inspectorOpen, setInspectorOpen] = useState(true)
   const [search, setSearch] = useState('')
-  const [category, setCategory] = useState('')
-  const [tag, setTag] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>({ type: 'all' })
+  const [tagFilter, setTagFilter] = useState<TagFilter>({ type: 'all' })
+  const pendingQuery = useRef<LibraryQuery | null>(null)
   const [sort, setSort] = useState<SortOrder>('published-desc')
   const [page, setPage] = useState(1)
   const operationId = useRef(0)
@@ -91,6 +89,7 @@ function App() {
   const view: LibraryView = rawView && Object.hasOwn(viewLabels, rawView) ? rawView as LibraryView : 'all'
   const isSettings = location.pathname === '/settings'
   const isProjects = location.pathname === '/projects'
+  const isStats = location.pathname === '/stats'
   const reportDirty = useCallback((dirty: boolean) => { editorDirty.current = dirty; api?.setEditorDirty(dirty) }, [api])
   const requestLeave = (action: () => void) => {
     if (editor.current?.isBusy()) { setError('文章正在处理操作，请稍后重试。'); return }
@@ -217,7 +216,7 @@ function App() {
       setCreatedNotice(null)
       setIndex(EMPTY_INDEX)
       selectArticle(null)
-      setSearch(''); setCategory(''); setTag(''); setPage(1)
+      setSearch(''); setCategoryFilter({ type: 'all' }); setTagFilter({ type: 'all' }); setPage(1)
       navigate('/library/all')
       const nextIndex = await unwrap(api.listArticles())
       if (token !== operationId.current) return
@@ -260,7 +259,7 @@ function App() {
     try {
       const created = await unwrap(api.createDraft({ ...fields, projectPath: project.path }))
       selectArticle(null)
-      setSearch(''); setCategory(''); setTag(''); setPage(1); setSort('modified-desc')
+      setSearch(''); setCategoryFilter({ type: 'all' }); setTagFilter({ type: 'all' }); setPage(1); setSort('modified-desc')
       setIndex(current => ({ ...current, articles: [created.article, ...current.articles], scannedAt: new Date().toISOString() }))
       if (view === 'drafts') selectArticle(created.article.relativePath)
       else pendingCreatedPath.current = created.article.relativePath
@@ -284,27 +283,40 @@ function App() {
     try { setSettings(await unwrap(api.forgetProject(path))) } catch (cause) { setError(errorMessage(cause)) }
   }
 
-  const viewArticles = useMemo(() => index.articles.filter(article => matchesView(article, view)), [index.articles, view])
-  const categories = useMemo(() => Array.from(new Set(viewArticles.map(article => article.category).filter((value): value is string => !!value))).sort((a, b) => a.localeCompare(b, 'zh-CN')), [viewArticles])
-  const tags = useMemo(() => Array.from(new Set(viewArticles.flatMap(article => article.tags))).sort((a, b) => a.localeCompare(b, 'zh-CN')), [viewArticles])
+  const scopeArticles = useMemo(() => index.articles.filter(article => matchesArticle(article, { view, category: { type: 'all' }, tag: { type: 'all' } })), [index.articles, view])
+  const categories = useMemo(() => Array.from(new Set(scopeArticles.map(article => article.category).filter((value): value is string => !!value))).sort((a, b) => a.localeCompare(b, 'zh-CN')), [scopeArticles])
+  const tags = useMemo(() => Array.from(new Set(scopeArticles.flatMap(article => article.tags))).sort((a, b) => a.localeCompare(b, 'zh-CN')), [scopeArticles])
   const filtered = useMemo(() => {
     const query = search.toLocaleLowerCase().trim()
-    return viewArticles.filter(article => (!query || `${article.title}\n${article.relativePath}`.toLocaleLowerCase().includes(query)) && (!category || article.category === category) && (!tag || article.tags.includes(tag))).sort((a, b) => {
+    return scopeArticles.filter(article => matchesArticle(article, { view, category: categoryFilter, tag: tagFilter }) && (!query || `${article.title}\n${article.relativePath}`.toLocaleLowerCase().includes(query))).sort((a, b) => {
       if (sort === 'title') return a.title.localeCompare(b.title, 'zh-CN')
       if (sort === 'modified-desc') return b.modifiedAt.localeCompare(a.modifiedAt)
       const comparison = (a.published ?? '').localeCompare(b.published ?? '')
       return sort === 'published-asc' ? comparison : -comparison
     })
-  }, [viewArticles, search, category, tag, sort])
+  }, [scopeArticles, view, search, categoryFilter, tagFilter, sort])
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const currentPage = Math.min(page, totalPages)
   const pageArticles = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
   const selectedArticle = index.articles.find(article => article.relativePath === selectedPath) ?? null
   const counts = useMemo(() => ({ all: index.articles.length, posts: index.articles.filter(article => article.kind === 'post').length, drafts: index.articles.filter(article => article.kind === 'draft').length, daily: index.articles.filter(article => article.kind === 'ai-daily').length }), [index.articles])
+  const stats = useMemo(() => summarize(index.articles, index.issues.length), [index.articles, index.issues.length])
+  const openLibrary = (query: LibraryQuery) => {
+    requestLeave(() => {
+      selectArticle(null)
+      setSearch('')
+      if (view === query.view && location.pathname.startsWith('/library/')) { setCategoryFilter(query.category); setTagFilter(query.tag); setPage(1); return }
+      pendingQuery.current = query
+      navigate(`/library/${query.view}`)
+    })
+  }
 
-  useEffect(() => { setPage(1) }, [view, search, category, tag, sort])
+  useEffect(() => { setPage(1) }, [view, search, categoryFilter, tagFilter, sort])
   useEffect(() => {
-    setCategory(''); setTag('')
+    const pending = pendingQuery.current
+    pendingQuery.current = null
+    if (pending?.view === view) { setCategoryFilter(pending.category); setTagFilter(pending.tag) }
+    else { setCategoryFilter({ type: 'all' }); setTagFilter({ type: 'all' }) }
     selectArticle(view === 'drafts' ? pendingCreatedPath.current : null)
     pendingCreatedPath.current = null
   }, [view, selectArticle])
@@ -326,7 +338,8 @@ function App() {
       </NavLink>
       <div className="nav-group-label">内容库</div>
       <nav className="main-nav">
-        {navItems.map(({ view: item, icon: Icon }) => <NavLink key={item} to={`/library/${item}`} className={cn('nav-item', !isSettings && !isProjects && view === item && 'is-active')}><Icon size={17} /><span>{viewLabels[item]}</span><span className="nav-count">{project ? counts[item] : '·'}</span></NavLink>)}
+        {navItems.map(({ view: item, icon: Icon }) => <NavLink key={item} to={`/library/${item}`} className={cn('nav-item', !isSettings && !isProjects && !isStats && view === item && 'is-active')}><Icon size={17} /><span>{viewLabels[item]}</span><span className="nav-count">{project ? counts[item] : '·'}</span></NavLink>)}
+        <NavLink to="/stats" className={cn('nav-item', isStats && 'is-active')}><ChartColumn size={17} /><span>文章统计</span></NavLink>
       </nav>
       <div className="sidebar-bottom">
         <NavLink to="/settings" className={({ isActive }) => cn('nav-item', isActive && 'is-active')}><Settings2 size={17} /><span>项目设置</span></NavLink>
@@ -347,20 +360,21 @@ function App() {
         : initializing ? <main className="welcome-content"><EmptyState icon={<LoaderCircle size={28} className="spin" />} title="正在打开工作空间" description="读取本地设置与文章索引…" /></main>
           : isSettings ? <SettingsView api={api} project={project} settings={settings} themeBusy={themeBusy} onTheme={changeTheme} onOpenFolder={() => void runAction(desktop => desktop.openProjectFolder())} issues={index.issues} onOpenProject={() => void openProject()} busy={busy} />
             : showWelcome ? <WelcomeView settings={settings} project={project} busy={busy} onOpen={() => void openProject()} onRecent={path => void openProject(path)} onForget={path => void forgetProject(path)} onContinue={() => navigate('/library/all')} />
+              : isStats ? <StatsView projectName={project.name} projectPath={project.path} scannedAt={index.scannedAt} stats={stats} issues={index.issues} busy={busy} onOpen={openLibrary} />
               : <main className="library-layout">
                 <section className="library" aria-label="文章库" hidden={!!selectedPath}>
-                  <div className="library-heading"><div><div className="heading-overline">内容管理</div><h1>{viewLabels[view]} <span>{viewArticles.length}</span></h1><p>{view === 'daily' ? '独立读取 AI 日报 collection 的内容与字段。' : view === 'drafts' ? '来自 src/contents/drafts。即使文件没有 draft 字段，或写了 draft: false，也属于草稿。' : view === 'posts' ? '来自 src/contents/post 的正文，不表示已经发布到线上。draft 字段不会把正文移入草稿。' : '从正文、草稿和 AI 日报目录读取 Markdown 与 MDX。'}</p></div><Button size="icon" variant="ghost" onClick={() => setInspectorOpen(!inspectorOpen)} aria-label={inspectorOpen ? '收起文章详情' : '显示文章详情'} title={inspectorOpen ? '收起文章详情' : '显示文章详情'}>{inspectorOpen ? <PanelRightClose size={19} /> : <PanelRightOpen size={19} />}</Button></div>
+                  <div className="library-heading"><div><div className="heading-overline">内容管理</div><h1>{viewLabels[view]} <span>{filtered.length}</span></h1><p>{view === 'daily' ? '独立读取 AI 日报 collection 的内容与字段。' : view === 'drafts' ? '来自 src/contents/drafts。即使文件没有 draft 字段，或写了 draft: false，也属于草稿。' : view === 'posts' ? '来自 src/contents/post 的正文，不表示已经发布到线上。draft 字段不会把正文移入草稿。' : view === 'writing' ? '正文和草稿的联合范围，不含 AI 日报。分类和标签筛选与文章统计使用同一口径。' : '从正文、草稿和 AI 日报目录读取 Markdown 与 MDX。'}</p></div><Button size="icon" variant="ghost" onClick={() => setInspectorOpen(!inspectorOpen)} aria-label={inspectorOpen ? '收起文章详情' : '显示文章详情'} title={inspectorOpen ? '收起文章详情' : '显示文章详情'}>{inspectorOpen ? <PanelRightClose size={19} /> : <PanelRightOpen size={19} />}</Button></div>
                   <div className="library-toolbar">
                     {view !== 'daily' && <Button variant="primary" disabled={busyAll} onClick={() => setCreateOpen(true)}><Plus size={16} />新建文章</Button>}
                     <div className="search-input"><Search size={16} /><Input type="search" placeholder="搜索标题或文件名…" aria-label="搜索文章" value={search} onChange={event => setSearch(event.target.value)} /></div>
                     <label className="sort-select"><ArrowDownUp size={14} /><select aria-label="文章排序" value={sort} onChange={event => setSort(event.target.value as SortOrder)}><option value="published-desc">日期从新到旧</option><option value="published-asc">日期从旧到新</option><option value="modified-desc">最近修改</option><option value="title">标题排序</option></select></label>
                   </div>
-                  <div className="filter-toolbar"><label className="filter-select"><Folder size={14} /><select aria-label="按分类筛选" value={category} onChange={event => setCategory(event.target.value)}><option value="">全部分类</option>{categories.map(value => <option key={value} value={value}>{value}</option>)}</select></label><label className="filter-select"><Tag size={14} /><select aria-label="按标签筛选" value={tag} onChange={event => setTag(event.target.value)}><option value="">全部标签</option>{tags.map(value => <option key={value} value={value}>{value}</option>)}</select></label>{(search || category || tag) && <Button size="small" variant="ghost" onClick={() => { setSearch(''); setCategory(''); setTag('') }}>清除筛选</Button>}<span className="filter-total">{filtered.length} 篇内容</span></div>
+                  <div className="filter-toolbar"><label className="filter-select"><Folder size={14} /><select aria-label="按分类筛选" value={categorySelectValue(categoryFilter)} onChange={event => setCategoryFilter(categoryFromSelect(event.target.value))}><option value="">全部分类</option><option value="missing">未填写分类</option>{categories.map(value => <option key={value} value={categorySelectValue({ type: 'name', name: value })}>{value}</option>)}</select></label><label className="filter-select"><Tag size={14} /><select aria-label="按标签筛选" value={tagSelectValue(tagFilter)} onChange={event => setTagFilter(tagFromSelect(event.target.value))}><option value="">全部标签</option>{tagFilter.type === 'untagged' && <option value="untagged">无标签（不是标签名）</option>}{tags.map(value => <option key={value} value={tagSelectValue({ type: 'name', name: value })}>{value}</option>)}</select></label>{(search || categoryFilter.type !== 'all' || tagFilter.type !== 'all') && <Button size="small" variant="ghost" onClick={() => { setSearch(''); setCategoryFilter({ type: 'all' }); setTagFilter({ type: 'all' }) }}>清除筛选</Button>}<span className="filter-total">{filtered.length} 篇内容</span></div>
                   {index.issues.length > 0 && <button className="scan-warning" onClick={() => navigate('/settings')}><AlertCircle size={15} /><span>读取时发现 {index.issues.length} 项问题，查看详情</span><ChevronRight size={14} /></button>}
                   <div className="article-table" aria-busy={busy}>
                     <div className="table-head"><span>文章</span><span>日期</span><span className="category-cell">分类</span><span>本地状态</span></div>
                     <div className="table-body">
-                      {busy ? <EmptyState compact icon={<LoaderCircle size={25} className="spin" />} title="正在读取文章" description="扫描本地文件与 Git 状态…" /> : pageArticles.length === 0 ? <EmptyState compact icon={<Search size={26} />} title={search || category || tag ? '没有匹配的内容' : '这里还没有内容'} description={search || category || tag ? '试试其他关键词，或清除当前筛选条件。' : '此内容目录没有可读取的文章，添加文件后点击刷新。'} /> : pageArticles.map(article => <button key={article.id} className={cn('article-row', selectedPath === article.relativePath && 'is-selected')} onClick={() => { selectArticle(article.relativePath); setInspectorOpen(true) }} aria-label={`查看文章：${article.title}`} aria-pressed={selectedPath === article.relativePath}>
+                      {busy ? <EmptyState compact icon={<LoaderCircle size={25} className="spin" />} title="正在读取文章" description="扫描本地文件与 Git 状态…" /> : pageArticles.length === 0 ? <EmptyState compact icon={<Search size={26} />} title={search || categoryFilter.type !== 'all' || tagFilter.type !== 'all' ? '没有匹配的内容' : '这里还没有内容'} description={search || categoryFilter.type !== 'all' || tagFilter.type !== 'all' ? '试试其他关键词，或清除当前筛选条件。' : '此内容目录没有可读取的文章，添加文件后点击刷新。'} /> : pageArticles.map(article => <button key={article.id} className={cn('article-row', selectedPath === article.relativePath && 'is-selected')} onClick={() => { selectArticle(article.relativePath); setInspectorOpen(true) }} aria-label={`查看文章：${article.title}`} aria-pressed={selectedPath === article.relativePath}>
                         <div className="article-main"><span className={cn('article-icon', article.kind === 'ai-daily' && 'is-daily')}>{article.kind === 'ai-daily' ? <Sparkles size={17} /> : <FileText size={17} />}</span><span className="article-main-text"><span className="article-title" title={article.title}>{article.title}{article.issues.length > 0 && <AlertCircle size={13} className="issue-mark" />}</span><span className="article-subtitle"><span>{kindLabel(article)}</span><span className="subtitle-separator">·</span><span className="article-tags">{article.tags.length ? article.tags.join(' / ') : article.extension.toUpperCase().slice(1)}</span></span></span></div>
                         <span className="date-cell">{dateLabel(article.published)}</span><span className="category-cell" title={article.category ?? ''}>{article.category ?? '未分类'}</span><span><Badge tone={article.fileStatus === 'conflict' || article.issues.length ? 'warning' : article.fileStatus === 'clean' || article.fileStatus === 'unknown' ? 'neutral' : 'accent'}>{statusLabels[article.fileStatus]}</Badge></span>
                       </button>)}
