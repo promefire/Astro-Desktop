@@ -1,8 +1,8 @@
 import path from 'node:path'
 import { readdir, realpath, stat } from 'node:fs/promises'
 import type { ArticleDocument, ArticleTarget, ContentIndex, OpenExternalEditorResult, ProjectInfo } from '../../shared/contracts'
-import { CONTENT_DIRECTORIES, contentKind, inspectProject, parseArticle } from '../adapters/promefire'
-import { ServiceError, errorMessage } from './errors'
+import { CONTENT_DIRECTORIES, MISSING_DRAFTS_MESSAGE, contentKind, inspectProject, parseArticle } from '../adapters/promefire'
+import { ServiceError, errorMessage, isMissing } from './errors'
 import { ARTICLE_SIZE_LIMIT, isWithin, normalizedRelative, readBounded, safePath } from './paths'
 import { createSettingsService } from './settings'
 import { readGit } from './git'
@@ -43,7 +43,7 @@ export function createServices(settingsFilePath: string) {
   async function resolve(project: ProjectInfo, relativePath: string): Promise<string> {
     const relative = normalizedRelative(relativePath)
     const kind = contentKind(relative)
-    if (!kind) throw new ServiceError('UNSUPPORTED_CONTENT', '只能访问普通文章 .md/.mdx 或 AI 日报 .md。')
+    if (!kind) throw new ServiceError('UNSUPPORTED_CONTENT', '只能访问正文或草稿的 .md/.mdx，以及 AI 日报 .md。')
     const resolved = await safePath(project.path, relative)
     const collection = await safePath(project.path, CONTENT_DIRECTORIES[kind])
     if (!isWithin(collection, resolved)) throw new ServiceError('PATH_OUTSIDE_COLLECTION', '文章链接指向当前内容目录之外。')
@@ -110,7 +110,16 @@ export function createServices(settingsFilePath: string) {
             }
           } catch (error) { index.issues.push({ path: directory, message: errorMessage(error) }) }
         }
-        for (const directory of Object.values(CONTENT_DIRECTORIES)) await scan(directory, 0)
+        for (const directory of Object.values(CONTENT_DIRECTORIES)) {
+          try {
+            const resolved = await safePath(project.path, directory)
+            if (!(await stat(resolved)).isDirectory()) { index.issues.push({ path: directory, message: `${directory} 不是目录，已跳过。` }); continue }
+          } catch (error) {
+            if (directory === CONTENT_DIRECTORIES.draft && isMissing(error)) { index.issues.push({ path: directory, message: MISSING_DRAFTS_MESSAGE }); continue }
+            if (directory === CONTENT_DIRECTORIES.draft) { index.issues.push({ path: directory, message: errorMessage(error) }); continue }
+          }
+          await scan(directory, 0)
+        }
         index.articles.sort((a, b) => (b.published ?? '').localeCompare(a.published ?? '') || a.relativePath.localeCompare(b.relativePath))
         return index
       },

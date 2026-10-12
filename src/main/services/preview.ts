@@ -218,7 +218,8 @@ export function createPreviewService(options: {
       const relative = normalizedRelative(relativePath)
       const kind = contentKind(relative)
       const id = kind ? collectionId(relative, kind) : null
-      if (!kind || !id) return { kind: 'unresolved', url: null, homepage, message: '当前文件不在普通文章或 AI 日报目录中，不能可靠生成站点地址。' }
+      if (kind === 'draft') return { kind: 'unresolved', url: null, homepage, message: '这篇草稿在 src/contents/drafts。当前博客的 Astro 集合和文章页只读取 src/contents/post，没有草稿路由。不会编造地址。可以打开站点首页。' }
+      if (!kind || !id) return { kind: 'unresolved', url: null, homepage, message: '当前文件不在正文或 AI 日报目录中，不能可靠生成站点地址。' }
       let pathname: string | null = null
       if (kind === 'ai-daily') pathname = dailyPath(id)
       else {

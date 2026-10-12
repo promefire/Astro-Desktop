@@ -1,5 +1,13 @@
 # 开发记录
 
+## 2026-10-12：按目录区分正文与草稿
+
+- 纠正此前用 Frontmatter `draft: true` 判断草稿、并把新文件写入 `src/contents/post/` 的做法。正文、草稿、AI 日报分别来自 `post`、`drafts`、`ai-daily`。已有文件中的 `draft` 字段原样保留，不据此搬迁。
+- 新建草稿只创建在 `src/contents/drafts/`。目录缺失时在已授权项目内创建该目录；目录链接或指向项目外的路径会被拒绝。
+- 核对了 `F:\blog\Astro_Blog` 的 `src/content.config.ts`：站点集合只有 `post`、`specs`、`aiDaily`，文章页读取 `src/contents/post`。因此草稿在本地预览中明确提示没有路由，不编造 URL。没有修改该博客。
+
+本轮结果见 [TESTING.md](TESTING.md)。下一项仍是简洁文章统计。
+
 ## 2026-10-12：真实本地预览
 
 - 完成计划第 5 项。顶栏「本地预览」在当前授权博客目录执行 `npm run dev`，保留 predev。Main 检查系统 Node、`npm.cmd`、dev 脚本和 `node_modules/astro`；桌面启动时同时读取 Windows Path。Electron 自带运行时不算系统 Node。可选的 Node / npm 路径必须成对验证后才写入设置。
@@ -36,7 +44,7 @@
 
 - 更新 [ROADMAP.md](ROADMAP.md)，纳入主区 CodeMirror 三模式 / 右栏属性、外部编辑器、npm run dev 本地预览与用户选定的简洁文章统计。取消 AI 日报新建 / 专用编辑表单，本轮只交付新建普通草稿。
 - 参考 HexoHub 的 `src/components/create-post-dialog.tsx`（研究快照 `bb39de8`）和用户截图：实现标题必填、标签回车添加、已有分类 / 标签建议、可选摘要。Astro 使用单分类，未加入尚无能力的模板控件。失败时保留表单，成功后转到草稿并选中文件。
-- `src/main/services/drafts.ts` 负责参数校验、Windows 文件名、日期与 YAML 生成、目录校验和不覆盖创建；新增 `content:create-draft`，Preload 只暴露这一特定写入操作。
+- `src/main/services/drafts.ts` 负责参数校验、Windows 文件名、日期与 YAML 生成、目录校验和不覆盖创建；新增 `content:create-draft`，Preload 只暴露这一特定写入操作。2026-10-12 更正：新文件改写入 `src/contents/drafts/`，不再写入 `draft: true`，也不再依据该字段分类。
 - 新建绑定当前 projectPath 并与项目切换串行处理，拒绝过期目标、额外路径 / source / kind 参数和链接目录；并发同名创建用文件系统独占操作分配不同名称。
 - 先完整写入临时文件并 sync，再以硬链接公布目标，支持 NTFS 等硬链接文件系统。文章文本使用 JSON 引号保持 YAML 1.1 下的字符串类型，published 使用本地时间戳以兼容 Astro 日期 schema。
 - 增加服务与 Electron 新建专项，所有写入位于测试临时目录；真实博客继续只读回归。没有为原博客创建测试文章、修改代码、提交或推送。

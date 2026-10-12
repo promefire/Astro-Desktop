@@ -48,6 +48,7 @@ describe('preview log, address and route helpers', () => {
   it('follows the blog slug rules without inventing an unknown mode', () => {
     expect(collectionId('src/contents/post/目录/文章.md', 'post')).toBe('目录/文章')
     expect(collectionId('src/contents/ai-daily/2026-10-08.md', 'ai-daily')).toBe('2026-10-08')
+    expect(collectionId('src/contents/drafts/note.md', 'draft')).toBeNull()
     expect(readSlugMode('export default { slugMode: "PINYIN", title: "x" }')).toBe('PINYIN')
     expect(readSlugMode('slugMode: "RAW"\nslugMode: "HASH"')).toBeNull()
     expect(hashSlug('hello')).toBe(createHash('sha256').update('hello').digest('hex').slice(0, 8))

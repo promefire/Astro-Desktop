@@ -48,7 +48,7 @@ export async function readGit(root: string): Promise<{ info: GitInfo; statuses: 
     const [branch, remote, statuses] = await Promise.allSettled([
       git(root, ['symbolic-ref', '--quiet', '--short', 'HEAD']).catch(async () => `detached:${await git(root, ['rev-parse', '--short', 'HEAD'])}`),
       git(root, ['remote', 'get-url', 'origin']),
-      git(root, ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--ignored=matching', '--ignore-submodules=all', '--', 'src/contents/post', 'src/contents/ai-daily']),
+      git(root, ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--ignored=matching', '--ignore-submodules=all', '--', 'src/contents/post', 'src/contents/drafts', 'src/contents/ai-daily']),
     ])
     if (branch.status === 'fulfilled') info.branch = branch.value
     if (remote.status === 'fulfilled') info.remote = redactRemote(remote.value)

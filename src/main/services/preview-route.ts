@@ -8,6 +8,7 @@ import { readBounded, safePath } from './paths'
 export type SlugMode = 'RAW' | 'HASH' | 'PINYIN'
 
 export function collectionId(relativePath: string, kind: ContentKind): string | null {
+  if (kind === 'draft') return null
   const prefix = kind === 'post' ? 'src/contents/post/' : 'src/contents/ai-daily/'
   if (!relativePath.startsWith(prefix)) return null
   const rest = relativePath.slice(prefix.length)

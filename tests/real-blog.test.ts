@@ -1,9 +1,10 @@
 import { expect, it } from 'vitest'
-import { mkdtemp, rm, readFile } from 'node:fs/promises'
+import { mkdtemp, rm, readFile, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
+import { MISSING_DRAFTS_MESSAGE } from '../src/main/adapters/promefire'
 import { createServices } from '../src/main/services'
 
 const blog = process.env.ASTRO_BLOG_TEST_PATH
@@ -18,7 +19,9 @@ it.skipIf(!blog)('reads an explicitly supplied real Astro_Blog checkout without 
     const project = await services.projects.select(blog!)
     const index = await services.content.list()
     expect(project.adapter).toBe('promefire-astro-blog')
-    expect(index.issues).toEqual([])
+    let draftsExist = true
+    try { await stat(path.join(blog!, 'src/contents/drafts')) } catch { draftsExist = false }
+    expect(index.issues).toEqual(draftsExist ? [] : [{ path: 'src/contents/drafts', message: MISSING_DRAFTS_MESSAGE }])
     expect(index.articles.filter((article) => article.kind === 'post').length).toBeGreaterThan(0)
     expect(index.articles.filter((article) => article.kind === 'ai-daily').length).toBeGreaterThan(0)
     expect(index.articles.every((article) => article.published !== null)).toBe(true)

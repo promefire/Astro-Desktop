@@ -1,9 +1,9 @@
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { link, lstat, open, realpath, unlink } from 'node:fs/promises'
+import { link, lstat, mkdir, open, realpath, unlink } from 'node:fs/promises'
 import type { ArticleDocument, CreateDraftInput, ProjectInfo } from '../../shared/contracts'
 import { CONTENT_DIRECTORIES, parseArticle } from '../adapters/promefire'
-import { ServiceError } from './errors'
+import { ServiceError, isMissing } from './errors'
 import { readGit } from './git'
 
 export function validateDraftInput(value: unknown): CreateDraftInput {
@@ -45,7 +45,7 @@ function draftSource(input: CreateDraftInput): string {
   // JSON strings are valid YAML scalars and quote YAML 1.1 words such as "on".
   // Keep the generated timestamp plain so Astro's YAML loader receives a Date.
   return [
-    '---', `title: ${JSON.stringify(input.title)}`, `published: ${published}`, 'draft: true',
+    '---', `title: ${JSON.stringify(input.title)}`, `published: ${published}`,
     `description: ${JSON.stringify(input.description)}`, `tags: ${JSON.stringify(input.tags)}`,
     `category: ${JSON.stringify(input.category)}`, '---', '', '',
   ].join('\n')
@@ -53,13 +53,22 @@ function draftSource(input: CreateDraftInput): string {
 
 async function writableCollection(project: ProjectInfo): Promise<string> {
   if (await realpath(project.path) !== project.path) throw new ServiceError('PROJECT_PATH_CHANGED', '项目路径已发生变化，请重新选择目录。')
+  const segments = CONTENT_DIRECTORIES.draft.split('/')
   let directory = project.path
-  for (const segment of CONTENT_DIRECTORIES.post.split('/')) {
-    directory = path.join(directory, segment)
-    const info = await lstat(directory)
-    if (info.isSymbolicLink() || !info.isDirectory()) throw new ServiceError('UNSAFE_WRITE_PATH', '普通文章目录包含目录链接或已失效，请恢复实际目录后重试。')
+  for (let index = 0; index < segments.length; index += 1) {
+    const next = path.join(directory, segments[index])
+    let info
+    try { info = await lstat(next) } catch (error) {
+      if (!isMissing(error) || index !== segments.length - 1) throw error
+      try { await mkdir(next) } catch (created) {
+        if (!created || typeof created !== 'object' || !('code' in created) || created.code !== 'EEXIST') throw created
+      }
+      info = await lstat(next)
+    }
+    if (info.isSymbolicLink() || !info.isDirectory()) throw new ServiceError('UNSAFE_WRITE_PATH', '草稿目录包含链接或不是实际目录，已拒绝新建。')
+    if (path.relative(next, await realpath(next))) throw new ServiceError('UNSAFE_WRITE_PATH', '草稿目录指向其他位置，已拒绝新建。')
+    directory = next
   }
-  if (path.relative(directory, await realpath(directory))) throw new ServiceError('UNSAFE_WRITE_PATH', '普通文章目录指向其他位置，已拒绝新建。')
   return directory
 }
 
@@ -67,8 +76,8 @@ export async function createDraft(project: ProjectInfo, input: CreateDraftInput)
   try { return await writeDraft(project, input) } catch (error) {
     if (error instanceof ServiceError) throw error
     const code = error && typeof error === 'object' && 'code' in error ? error.code : ''
-    if (code === 'ENOENT') throw new ServiceError('CREATE_FAILED', '普通文章目录不存在，请恢复目录或重新选择项目后重试。')
-    if (code === 'EACCES' || code === 'EPERM') throw new ServiceError('CREATE_FAILED', '无法写入普通文章目录，请检查文件夹权限或文件是否被占用。')
+    if (code === 'ENOENT') throw new ServiceError('CREATE_FAILED', '草稿目录的上级目录不存在，请恢复 src/contents 后重试。')
+    if (code === 'EACCES' || code === 'EPERM') throw new ServiceError('CREATE_FAILED', '无法写入草稿目录，请检查文件夹权限或文件是否被占用。')
     if (code === 'ENOSPC') throw new ServiceError('CREATE_FAILED', '磁盘空间不足，无法创建草稿。')
     throw new ServiceError('CREATE_FAILED', '草稿创建失败，请检查项目目录、写入权限和磁盘空间后重试。')
   }
@@ -96,7 +105,7 @@ async function writeDraft(project: ProjectInfo, input: CreateDraftInput): Promis
         // A hard link publishes the complete file without replacing an existing name.
         // Unlike rename on Windows/Unix, an occupied target always fails.
         await link(temporary, path.join(directory, name))
-        relativePath = `${CONTENT_DIRECTORIES.post}/${name}`
+        relativePath = `${CONTENT_DIRECTORIES.draft}/${name}`
         break
       } catch (error) {
         if (error && typeof error === 'object' && 'code' in error && error.code === 'EEXIST') continue
@@ -111,7 +120,7 @@ async function writeDraft(project: ProjectInfo, input: CreateDraftInput): Promis
   }
   const git = await readGit(project.path)
   const ignored = [...git.statuses].some(([entry, status]) => status === 'ignored' && relativePath.startsWith(`${entry.replace(/\/$/, '')}/`))
-  return parseArticle(source, relativePath, 'post', {
+  return parseArticle(source, relativePath, 'draft', {
     modifiedAt, size: Buffer.byteLength(source),
     fileStatus: git.statusAvailable ? git.statuses.get(relativePath) ?? (ignored ? 'ignored' : 'untracked') : 'unknown',
   })

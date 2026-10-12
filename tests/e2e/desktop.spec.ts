@@ -1,10 +1,11 @@
 import { test, expect, _electron as electron } from '@playwright/test'
 import type { ElectronApplication } from '@playwright/test'
-import { mkdtemp, readFile, readdir, mkdir } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, mkdir, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
+import { MISSING_DRAFTS_MESSAGE } from '../../src/main/adapters/promefire'
 
 const blogPath = process.env.ASTRO_BLOG_TEST_PATH ?? 'F:\\blog\\Astro_Blog'
 const projectRoot = path.resolve('.')
@@ -56,7 +57,9 @@ test('real blog: secure IPC, metadata, UI filters, source fidelity and restart p
     const expectedDaily = Object.keys(before).filter((file) => /^ai-daily[\\/].*\.md$/i.test(file)).length
     expect(index.data.articles.filter((a) => a.kind === 'post')).toHaveLength(expectedPost)
     expect(index.data.articles.filter((a) => a.kind === 'ai-daily')).toHaveLength(expectedDaily)
-    expect(index.data.issues).toEqual([])
+    let draftsExist = true
+    try { await stat(path.join(blogPath, 'src/contents/drafts')) } catch { draftsExist = false }
+    expect(index.data.issues).toEqual(draftsExist ? [] : [{ path: 'src/contents/drafts', message: MISSING_DRAFTS_MESSAGE }])
     expect(index.data.articles.flatMap((a) => a.issues)).toEqual([])
     expect(index.data.articles.filter((a) => a.kind === 'ai-daily').every((a) => a.draft === null)).toBe(true)
     const mdx = index.data.articles.find((a) => a.extension === '.mdx')!

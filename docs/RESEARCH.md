@@ -97,7 +97,9 @@ tags:
 
 AI 日报没有独立的 `/ai-daily/{id}` 动态文章页。`src/pages/ai-daily.astro` 读取全部 `aiDaily`，按 published 降序聚合；文章锚点为 `daily-${id.replaceAll("/", "-")}`。后续单条日报预览链接应指向 `/ai-daily#daily-{id}` 对应锚点。
 
-`src/utils/content.ts` 的普通列表、归档、标签和分类函数在生产模式过滤 `draft: true`。但 `src/pages/post/[...slug].astro` 的 `getStaticPaths()` 直接读取全部 `post`，未执行同样的过滤。因此目前不能保证草稿不会生成可直接访问的页面。此为下一阶段发布验收事项，本次没有修改博客代码。RSS、站内搜索索引和其他入口也需单独核实，不能只依据文章列表判断隐藏是否完整。
+`src/utils/content.ts` 的普通列表、归档、标签和分类函数在生产模式过滤 `draft: true`。但 `src/pages/post/[...slug].astro` 的 `getStaticPaths()` 直接读取全部 `post`，未执行同样的过滤。因此目前不能保证带 `draft: true` 的正文不会生成可直接访问的页面。此为后续发布验收事项，本次没有修改博客代码。RSS、站内搜索索引和其他入口也需单独核实，不能只依据文章列表判断隐藏是否完整。
+
+2026-10-12 补充：桌面端的正文 / 草稿分类改为目录，不再跟随上述 `draft` 字段。`src/content.config.ts` 仍没有 `src/contents/drafts` 集合，所以客户端不会为草稿构造站点地址。
 
 ## 5. 项目命令与部署
 

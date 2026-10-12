@@ -1,5 +1,17 @@
 # 测试记录
 
+## 2026-10-12：按目录区分正文与草稿
+
+本次结果：TypeScript strict 通过；设置真实博客变量后 **54 / 54** 个单元 / 文件系统测试通过（9 个文件）；Main / Preload / Renderer 构建通过；完整 Electron E2E **7 / 7** 通过；依赖审计 **0** 个已知漏洞。没有新增依赖。没有修改 `F:\blog\Astro_Blog` 的文件，也没有执行它的 dev、commit 或 push。
+
+命令：`npm run typecheck`、`$env:ASTRO_BLOG_TEST_PATH = 'F:\blog\Astro_Blog'; npm test`、`npm run test:e2e`（含构建）、`npm audit`。
+
+`tests/drafts.test.ts` 增加目录分类：`post` 中的 `draft: true` 仍是正文，`drafts` 中的 `draft: false` 和无 `draft` 字段仍是草稿。缺失的草稿目录会提示且不把正文算成草稿；新建时只在项目内创建该目录。上级目录缺失、目录联接指向日报目录时拒绝写入。保存草稿仍写回原路径。新建文件不再包含 `draft:`。
+
+预览测试确认 `src/contents/drafts` 没有站点路由时不调用打开函数。外部编辑器测试确认草稿路径会交给默认打开函数，且不改文件。Electron 新建场景确认新文件落在草稿目录，带 `draft: true` 的正文仍出现在正文列表。
+
+真实博客目前没有 `src/contents/drafts`。读取会报告该目录不存在，不会自动创建。Git 状态在读取前后不变。
+
 ## 2026-10-12：真实本地预览
 
 本次结果：TypeScript strict 通过；设置真实博客变量后 **53 / 53** 个单元 / 文件系统测试通过（9 个文件）；Main / Preload / Renderer 构建通过；完整 Electron E2E **7 / 7** 通过；依赖审计 **0 个已知漏洞**。没有新增依赖。没有在 `F:\blog\Astro_Blog` 上执行 predev、dev、build、commit 或 push。

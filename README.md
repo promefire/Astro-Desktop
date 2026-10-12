@@ -42,14 +42,14 @@ node node_modules/electron/install.js
 ## 当前能力
 
 - 原生目录选择、Astro 项目验证、最近项目、自动恢复及失效目录报错。
-- 递归读取 `src/contents/post/**/*.{md,mdx}` 与 `src/contents/ai-daily/**/*.md`。
+- 递归读取正文 `src/contents/post/**/*.{md,mdx}`、草稿 `src/contents/drafts/**/*.{md,mdx}` 与日报 `src/contents/ai-daily/**/*.md`。所属列表由目录决定。
 - Frontmatter 标题、原始发布日期、分类、标签、普通文章草稿与独立日报属性；异常文件可定位，不阻塞其他文章。
 - 搜索、类型 / 草稿 / 分类 / 标签筛选、排序、分页，右侧显示已保存属性。
 - CodeMirror 源码编辑，源码 / Markdown 基础预览 / 左右分栏；撤销重做、查找替换、Ctrl+S 保存。
 - 检测外部修改并停止覆盖，保存前备份，未保存导航与退出保护，本地编辑恢复记录和另存副本。
 - 用 Windows 为 `.md` / `.mdx` 登记的默认程序打开当前文章。打开后编辑区暂停，重新加载后才继续编辑。
 - 顶栏「本地预览」检查 Node / npm / dev 脚本 / Astro 依赖后，在当前博客目录执行 `npm run dev`，显示真实状态、日志和本地地址，并可停止本次进程。与编辑器里的 Markdown 基础预览分开。详见 [本地预览](docs/PREVIEW.md)。
-- 新建普通文章：标题必填，标签、单个分类和摘要可选；在真实 post 目录创建 `draft: true` 的 Markdown，同名自动加序号，创建后进入草稿。AI 日报不提供新增。
+- 新建草稿：标题必填，标签、单个分类和摘要可选；写入 `src/contents/drafts/`，不写 `draft` 字段，同名自动加序号，创建后进入草稿。AI 日报不提供新增。正文目录不表示已经发布。
 - Git 本地状态、当前分支及脱敏远程地址；刷新与系统资源管理器定位。
 - 浅色、深色、跟随系统外观，设置保存在 Electron `userData` 下。
 

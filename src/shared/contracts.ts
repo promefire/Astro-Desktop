@@ -1,4 +1,4 @@
-export type ContentKind = 'post' | 'ai-daily'
+export type ContentKind = 'post' | 'draft' | 'ai-daily'
 export type Theme = 'light' | 'dark' | 'system'
 export type FileStatus = 'clean' | 'modified' | 'added' | 'untracked' | 'conflict' | 'ignored' | 'unknown'
 export interface RecentProject { path: string; name: string; lastOpened: string }

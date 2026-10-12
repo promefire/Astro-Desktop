@@ -25,7 +25,7 @@ React Renderer 只调用 `window.astroDesktop`。Preload 使用 `contextBridge` 
 
 新建先 `open(wx)` 独占临时文件、写入 / sync / 关闭，再通过 [Node fsPromises.link](https://nodejs.org/api/fs.html#fspromiseslinkexistingpath-newpath) 创建目标名称。同名失败时重试带序号名称，不以覆盖性 rename 回退。最后只移除自己创建的临时文件；被杀进程或文件锁可能留下 `.tmp`（不参与文章读取）。此策略需要硬链接支持，已有文件、同名目录和并行新建有测试覆盖。不能保证抵御同机恶意进程持续更换目录的文件系统竞态攻击。
 
-发布日期保留文档日期语义，不用 UTC 转换导致日期跨天。普通文章 `draft` 与日报没有 draft 的 schema 分开处理。每次刷新重新读磁盘；本阶段无自动文件监听。
+发布日期保留文档日期语义，不用 UTC 转换导致日期跨天。正文与草稿使用同一套文章字段，但 `kind` 来自目录：`src/contents/post`、`src/contents/drafts`、`src/contents/ai-daily`。Frontmatter 的 `draft` 只按原值保留，缺失时为未设置，无效时报告字段问题，不把文章改列入另一个目录。当前博客的 Astro 集合没有 drafts，本地预览因此不为草稿生成地址。每次刷新重新读磁盘；本阶段无自动文件监听。
 
 ## 下一阶段接口
 

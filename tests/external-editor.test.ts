@@ -98,6 +98,13 @@ describe('opening with the default application', () => {
     await expect(openWithDefaultApp(opened.articlePath, async () => '')).resolves.toBeUndefined()
     expect(called).toBe(true)
     expect(await readFile(path.join(project, relativePath), 'utf8')).toBe(source)
+    const draftRelative = 'src/contents/drafts/草稿.md'
+    await mkdir(path.dirname(path.join(project, draftRelative)), { recursive: true })
+    await writeFile(path.join(project, draftRelative), source)
+    const draftSeen: string[] = []
+    const draftOpened = await services.externalEditor.open({ projectPath: project, relativePath: draftRelative }, async (article) => { draftSeen.push(article); return '' }, async () => ready)
+    expect(draftSeen).toEqual([draftOpened.articlePath])
+    expect(await readFile(path.join(project, draftRelative), 'utf8')).toBe(source)
   })
   it('does not call the opener when no association exists or the path is outside the article', async () => {
     let calls = 0

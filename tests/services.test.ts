@@ -18,6 +18,7 @@ const sample = '---\r\ntitle: 错误及解决\r\npublished: 2021-03-06 22:00:05\
 
 async function fixture(at: string): Promise<void> {
   await mkdir(path.join(at, 'src/contents/post'), { recursive: true })
+  await mkdir(path.join(at, 'src/contents/drafts'), { recursive: true })
   await mkdir(path.join(at, 'src/contents/ai-daily'), { recursive: true })
   await writeFile(path.join(at, 'package.json'), JSON.stringify({ name: 'yukina', dependencies: { astro: '^5.3.0' }, packageManager: 'pnpm@9.14.4', scripts: { dev: 'astro dev', build: 'astro build' } }))
 }
@@ -110,7 +111,7 @@ describe('real filesystem content adapter', () => {
     const services = createServices(settingsFile)
     await services.projects.select(project)
     const document = await services.content.read(post)
-    expect(document.article).toMatchObject({ title: '错误及解决', published: '2021-03-06T22:00:05', category: '后端学习', tags: ['Java', 'Spring Boot', '项目开发'], draft: false, top: 3, fileStatus: 'unknown', issues: [] })
+    expect(document.article).toMatchObject({ title: '错误及解决', published: '2021-03-06T22:00:05', category: '后端学习', tags: ['Java', 'Spring Boot', '项目开发'], draft: null, top: 3, fileStatus: 'unknown', issues: [] })
     expect(document.source).toBe(sample)
     expect(document.body).toBe('\r\n# 正文\r\n')
     expect(document.frontmatter.custom).toEqual({ nested: true })

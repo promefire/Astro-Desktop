@@ -3,13 +3,15 @@ import { realpath, stat } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { parseDocument } from 'yaml'
 import type { ArticleDocument, ContentKind, FileStatus, ProjectInfo } from '../../shared/contracts'
-import { ServiceError } from '../services/errors'
+import { ServiceError, isMissing } from '../services/errors'
 import { ensureDirectory, readBounded, safePath } from '../services/paths'
 import { readGit } from '../services/git'
 
-export const CONTENT_DIRECTORIES: Record<ContentKind, string> = { post: 'src/contents/post', 'ai-daily': 'src/contents/ai-daily' }
+export const CONTENT_DIRECTORIES: Record<ContentKind, string> = { post: 'src/contents/post', draft: 'src/contents/drafts', 'ai-daily': 'src/contents/ai-daily' }
+export const MISSING_DRAFTS_MESSAGE = '草稿目录 src/contents/drafts 不存在。本次没有读取草稿；新建草稿时只会在当前项目内创建该目录。'
 export function contentKind(relative: string): ContentKind | null {
   const lower = relative.toLowerCase()
+  if (relative.startsWith(`${CONTENT_DIRECTORIES.draft}/`) && /\.mdx?$/.test(lower)) return 'draft'
   if (relative.startsWith(`${CONTENT_DIRECTORIES.post}/`) && /\.mdx?$/.test(lower)) return 'post'
   if (relative.startsWith(`${CONTENT_DIRECTORIES['ai-daily']}/`) && lower.endsWith('.md')) return 'ai-daily'
   return null
@@ -26,11 +28,16 @@ export async function inspectProject(directory: string): Promise<ProjectInfo> {
   if (!pkg || typeof pkg !== 'object' || Array.isArray(pkg)) throw new ServiceError('INVALID_PROJECT', 'package.json 格式无效。')
   const dependencies = { ...(typeof pkg.devDependencies === 'object' ? pkg.devDependencies : {}), ...(typeof pkg.dependencies === 'object' ? pkg.dependencies : {}) } as Record<string, unknown>
   if (typeof dependencies.astro !== 'string' || !dependencies.astro.trim()) throw new ServiceError('INVALID_PROJECT', 'package.json 未声明 astro 依赖。')
-  for (const relative of Object.values(CONTENT_DIRECTORIES)) {
+  for (const relative of [CONTENT_DIRECTORIES.post, CONTENT_DIRECTORIES['ai-daily']]) {
     try { await ensureDirectory(root, relative) } catch (error) {
       if (error instanceof ServiceError && error.code === 'PATH_OUTSIDE_PROJECT') throw error
       throw new ServiceError('INVALID_PROJECT', `缺少内容目录 ${relative}；本版本适配 promefire/Astro_Blog 的目录结构。`)
     }
+  }
+  let draftsWarning: string | null = null
+  try { await ensureDirectory(root, CONTENT_DIRECTORIES.draft) } catch (error) {
+    if (error instanceof ServiceError && error.code === 'PATH_OUTSIDE_PROJECT') throw error
+    draftsWarning = error instanceof ServiceError ? `${CONTENT_DIRECTORIES.draft} 不是可用目录，草稿无法读取。` : isMissing(error) ? MISSING_DRAFTS_MESSAGE : '无法确认草稿目录，本次没有读取草稿。'
   }
   const scripts: Record<string, string> = {}
   if (pkg.scripts && typeof pkg.scripts === 'object') {
@@ -40,7 +47,7 @@ export async function inspectProject(directory: string): Promise<ProjectInfo> {
   return {
     name: path.basename(root), path: root, adapter: 'promefire-astro-blog', astroVersion: dependencies.astro,
     packageManager: typeof pkg.packageManager === 'string' ? pkg.packageManager : null,
-    scripts, git: git.info, contentDirectories: { ...CONTENT_DIRECTORIES }, warnings: git.info.error ? [git.info.error] : [],
+    scripts, git: git.info, contentDirectories: { ...CONTENT_DIRECTORIES }, warnings: [git.info.error, draftsWarning].filter((item): item is string => !!item),
   }
 }
 
@@ -106,21 +113,24 @@ export function parseArticle(source: string, relativePath: string, kind: Content
   if (published === null) issues.push('published 必须是有效日期（如 2026-10-09 或 2026-10-09 15:30:00）')
   let draft: boolean | null = null
   let top: number | null = null
-  if (kind === 'post') {
-    draft = frontmatter.draft === undefined ? false : typeof frontmatter.draft === 'boolean' ? frontmatter.draft : null
-    if (draft === null) issues.push('draft 必须是布尔值')
+  const articleKind = kind === 'post' || kind === 'draft'
+  if (articleKind) {
+    if (frontmatter.draft !== undefined) {
+      draft = typeof frontmatter.draft === 'boolean' ? frontmatter.draft : null
+      if (draft === null) issues.push('draft 必须是布尔值。该字段只保留为原始元数据，不决定文章属于正文还是草稿。')
+    }
     if (frontmatter.top !== undefined) {
       if (typeof frontmatter.top === 'number' && Number.isSafeInteger(frontmatter.top)) top = frontmatter.top
       else issues.push('top 必须是整数')
     }
     for (const field of ['cover', 'author', 'sourceLink', 'licenseName', 'licenseUrl']) text(field)
-  } else if (frontmatter.draft !== undefined) issues.push('AI 日报 schema 不支持 draft；该字段不会作为草稿状态')
+  } else if (frontmatter.draft !== undefined) issues.push('AI 日报 schema 不支持 draft；该字段不会改变日报所属列表')
   return {
     article: {
       id: relativePath, relativePath, kind, extension: relativePath.toLowerCase().endsWith('.mdx') ? '.mdx' : '.md',
       title: text('title', true) || path.basename(relativePath, path.extname(relativePath)), published,
-      category: kind === 'post' ? text('category') || null : null, tags: strings('tags'), draft,
-      description: kind === 'post' ? text('description') : '', summary: kind === 'ai-daily' ? text('summary', true) : '',
+      category: articleKind ? text('category') || null : null, tags: strings('tags'), draft,
+      description: articleKind ? text('description') : '', summary: kind === 'ai-daily' ? text('summary', true) : '',
       highlights: kind === 'ai-daily' ? strings('highlights') : [], tools: kind === 'ai-daily' ? strings('tools') : [],
       top, ...meta, issues,
     },

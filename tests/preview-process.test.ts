@@ -137,6 +137,13 @@ describe('local preview process', () => {
     expect(opened).toEqual([article.url])
     const daily = await services.preview.openArticle('src/contents/ai-daily/2026-10-08.md', async (url) => { opened.push(url) })
     expect(daily.url).toContain('/ai-daily#daily-2026-10-08')
+    await mkdir(path.join(project, 'src/contents/drafts'), { recursive: true })
+    await writeFile(path.join(project, 'src/contents/drafts/note.md'), '---\ntitle: Draft\npublished: 2026-01-01\ndraft: false\n---\n草稿\n')
+    const before = opened.length
+    const draft = await services.preview.openArticle('src/contents/drafts/note.md', async () => { opened.push('draft-opened') })
+    expect(draft.kind).toBe('unresolved')
+    expect(draft.message).toContain('没有草稿路由')
+    expect(opened).toHaveLength(before)
     await services.preview.stop()
     const stopped = await blog('无配置')
     await stopped.services.preview.start(15_000)
