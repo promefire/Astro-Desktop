@@ -29,7 +29,7 @@ React Renderer 只调用 `window.astroDesktop`。Preload 使用 `contextBridge` 
 
 ## 下一阶段接口
 
-`src/shared/future-services.ts` 为后续 Frontmatter 表单更新、附件、删除恢复、Astro 进程、Git 写操作和发布编排定义接口；这些未来接口没有实现，也不注册 IPC。普通草稿创建、源码保存、编辑恢复已转入实际 DesktopApi；AI 日报不增加创建或专用编辑接口。
+`src/shared/future-services.ts` 为后续 Frontmatter 表单更新、附件、删除恢复、生产构建、Git 写操作和发布编排定义接口；这些未来接口没有实现，也不注册通用命令 IPC。普通草稿创建、源码保存、编辑恢复和本地预览已转入实际 DesktopApi；AI 日报不增加创建或专用编辑接口。
 
 ## 编辑器与保存
 
@@ -39,9 +39,13 @@ React Renderer 只调用 `window.astroDesktop`。Preload 使用 `contextBridge` 
 
 外部编辑器不保存可执行文件路径。打开前用 `System32\reg.exe` 的参数数组查询 `.md` / `.mdx` 的用户默认 ProgId，没有时再看 `HKCR` 的类型登记；查询失败不会显示为已打开。确认存在默认方式后，主进程用 Electron `shell.openPath` 把文章真实路径交给系统，由系统启动默认程序，不拼接命令行，也不弹出客户端自己的编辑器选择框。`shell.openPath` 返回非空错误时显示失败，编辑区保持可编辑。打开成功后渲染进程暂停当前文章的编辑，直到用户重新加载磁盘版本。客户端不跟踪、不结束用户的编辑器进程，也不监视文章文件。旧设置里的 `externalEditorPath` 会被忽略，避免因此把设置文件判为损坏。
 
-## 后续预览与发布
+## 本地预览
 
-预览按用户要求执行所选项目的 `npm run dev`，先检查 Windows 的 Node / npm / PATH 与依赖，保留现有前置脚本，并按实际 URL 转换定位文章；只停止自身启动的进程。发布需要明确文件范围，fetch 后安全整合远端日报，冲突或构建失败停止；推送成功仅可报告部署待确认。有关现有路由与部署的核实见 RESEARCH.md。
+预览进程和环境检查只在 Main。Preload 暴露 `preview:*` 专用接口，Renderer 不能执行任意命令。启动使用 `cmd.exe /d /s /c` 调用已验证的 `npm.cmd`，参数为结构化的 `npm run dev`，工作目录是当前授权博客，因此项目自己的 predev 仍会执行。不会把 Electron 自带的 Node 当作系统 Node，也不会拼接文章或日志里的命令。
+
+子进程环境去掉 `ELECTRON_*`，并去掉指向 Electron 的 `NODE_OPTIONS`；把所选 Node 所在目录放在 PATH 前面。不追加 `--host`，不改博客配置。状态只有在本次日志里的本地地址通过 HTTP 2xx/3xx 检查后才变为运行中。停止只对本次启动的进程编号执行 `taskkill /PID /T /F`。切换项目、关闭窗口后退出应用时结束该进程树。使用说明见 [PREVIEW.md](PREVIEW.md)。
+
+发布仍未实现。将来需要明确文件范围，fetch 后安全整合远端日报，冲突或构建失败停止；推送成功仅可报告部署待确认。路由核实见 RESEARCH.md。
 
 ## 参考
 

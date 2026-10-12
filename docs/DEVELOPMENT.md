@@ -1,5 +1,15 @@
 # 开发记录
 
+## 2026-10-12：真实本地预览
+
+- 完成计划第 5 项。顶栏「本地预览」在当前授权博客目录执行 `npm run dev`，保留 predev。Main 检查系统 Node、`npm.cmd`、dev 脚本和 `node_modules/astro`；桌面启动时同时读取 Windows Path。Electron 自带运行时不算系统 Node。可选的 Node / npm 路径必须成对验证后才写入设置。
+- 启动使用 `cmd.exe` 的参数数组和 `windowsVerbatimArguments`，不拼接文章或日志中的命令。子进程去掉 `ELECTRON_*` 和指向 Electron 的 `NODE_OPTIONS`。不修改博客配置，不追加对外监听参数。
+- 运行中只在本次日志里的 `127.0.0.1` / `localhost` 地址通过 HTTP 检查后成立。停止只对本次进程编号执行 `taskkill /T /F`。切换项目会清掉旧日志和状态，并结束旧项目的进程树；退出应用时同样清理。
+- 「在站点中预览」按 `yukina.config.ts` 的 `slugMode` 生成普通文章地址；拼音转换使用博客自己的 `pinyin-pro`。AI 日报使用 `/ai-daily` 锚点。无法确定地址时只提供首页。未保存内容先走现有保存或放弃；保存失败或冲突不会打开。
+- 进程测试使用隔离临时项目。另有一个安装了真实 `astro@5` 的隔离项目完成启动、HTTP 访问和停止。没有在 `F:\blog\Astro_Blog` 上运行 predev 或 dev。
+
+本轮结果见 [TESTING.md](TESTING.md)，使用方式见 [PREVIEW.md](PREVIEW.md)。下一项为简洁文章统计。
+
 ## 2026-10-12：外部编辑器
 
 - 完成计划第 4 项后，按用户要求改为使用 Windows 为 `.md` / `.mdx` 登记的默认程序，不再要求手动选择可执行文件。检查只查询注册表中的用户默认项和类型登记；打开使用 Electron `shell.openPath`，不拼接命令行。没有默认程序或系统返回错误时，编辑区保持不变。

@@ -206,6 +206,14 @@ dd { margin: 0; overflow-wrap: anywhere; }
 .source-body .detail-feedback { margin: 0 22px; }
 .detail-feedback.is-error { align-items: flex-start; color: var(--warning-text); }
 .detail-feedback p { margin: 0; line-height: 1.8; overflow-wrap: anywhere; }
+.preview-status, .preview-url, .preview-runtime { display: flex; align-items: center; gap: 8px; font-size: 12px; line-height: 1.6; }
+.preview-status strong { min-width: 4em; }
+.preview-url, .preview-runtime { color: var(--secondary); overflow-wrap: anywhere; }
+.preview-checks { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+.preview-check { display: flex; flex-direction: column; gap: 2px; font-size: 12px; line-height: 1.6; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; }
+.preview-check.is-ok { border-color: color-mix(in srgb, var(--success) 45%, var(--border)); }
+.preview-check small { color: var(--muted); }
+.preview-log { max-height: 220px; overflow: auto; margin: 12px 0 0; padding: 10px; background: var(--subtle); border: 1px solid var(--border); border-radius: 6px; color: var(--secondary); font: 11px/1.6 Consolas, "Cascadia Code", "Microsoft YaHei UI", monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 .statusbar { height: 29px; min-height: 29px; display: flex; justify-content: space-between; align-items: center; gap: 15px; padding: 0 18px; border-top: 1px solid var(--border); color: var(--muted); background: var(--surface); font-size: 9px; }
 .statusbar > div { display: flex; align-items: center; gap: 12px; min-width: 0; white-space: nowrap; }
 .statusbar > div:last-child { flex-shrink: 0; gap: 18px; }

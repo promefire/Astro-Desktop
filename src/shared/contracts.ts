@@ -4,7 +4,13 @@ export type FileStatus = 'clean' | 'modified' | 'added' | 'untracked' | 'conflic
 export interface RecentProject { path: string; name: string; lastOpened: string }
 export interface ExternalEditorStatus { associations: Record<'.md' | '.mdx', 'ready' | 'missing'>; message: string }
 export interface OpenExternalEditorResult { articlePath: string }
-export interface AppSettings { version: 1; theme: Theme; recentProjects: RecentProject[]; lastProjectPath: string | null }
+export interface PreviewRuntimeSetting { nodePath: string | null; npmPath: string | null }
+export type PreviewPhase = 'idle' | 'checking' | 'starting' | 'running' | 'stopping' | 'failed'
+export interface PreviewCheck { id: 'node' | 'npm' | 'script' | 'dependencies'; status: 'ok' | 'missing'; label: string; detail: string; suggestion: string }
+export interface PreviewRuntimeInfo { nodePath: string; npmPath: string; nodeVersion: string; npmVersion: string; source: 'configured' | 'detected' }
+export interface PreviewState { projectPath: string | null; phase: PreviewPhase; url: string | null; message: string; log: string; exitCode: number | null; checks: PreviewCheck[]; runtime: PreviewRuntimeInfo | null }
+export interface PreviewArticleResult { kind: 'opened' | 'unresolved'; url: string | null; homepage: string | null; message: string }
+export interface AppSettings { version: 1; theme: Theme; recentProjects: RecentProject[]; lastProjectPath: string | null; previewRuntime: PreviewRuntimeSetting }
 export interface GitInfo { available: boolean; isRepository: boolean; branch: string | null; remote: string | null; error: string | null }
 export interface ProjectInfo {
   name: string; path: string; adapter: 'promefire-astro-blog'; astroVersion: string;
@@ -48,6 +54,15 @@ export interface DesktopApi {
   exportEditorCopy(input: { source: string; suggestedName: string }): Promise<Result<string | null>>;
   checkExternalEditor(): Promise<Result<ExternalEditorStatus>>;
   openExternalEditor(input: ArticleTarget): Promise<Result<OpenExternalEditorResult>>;
+  getPreview(): Promise<Result<PreviewState>>;
+  checkPreview(): Promise<Result<PreviewState>>;
+  startPreview(): Promise<Result<PreviewState>>;
+  stopPreview(): Promise<Result<PreviewState>>;
+  choosePreviewRuntime(): Promise<Result<PreviewState | null>>;
+  clearPreviewRuntime(): Promise<Result<PreviewState>>;
+  openPreviewHome(): Promise<Result<{ url: string }>>;
+  openPreviewArticle(input: ArticleTarget): Promise<Result<PreviewArticleResult>>;
+  onPreviewState(listener: (state: PreviewState) => void): () => void;
   setEditorDirty(dirty: boolean): void;
   onCloseRequested(listener: () => void): () => void;
   closeWindow(): Promise<Result<void>>;
@@ -65,4 +80,7 @@ export const IPC = {
   setEditorDirty: 'editor:dirty', closeRequested: 'window:close-requested', closeWindow: 'window:close',
   exportEditorCopy: 'editor:export-copy',
   checkExternalEditor: 'editor:check-external', openExternalEditor: 'editor:open-external',
+  getPreview: 'preview:status', checkPreview: 'preview:check', startPreview: 'preview:start', stopPreview: 'preview:stop',
+  choosePreviewRuntime: 'preview:choose-runtime', clearPreviewRuntime: 'preview:clear-runtime',
+  openPreviewHome: 'preview:open-home', openPreviewArticle: 'preview:open-article', previewState: 'preview:state',
 } as const

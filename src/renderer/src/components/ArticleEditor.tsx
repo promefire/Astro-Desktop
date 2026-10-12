@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
-import { ArrowLeft, Code2, Columns2, Download, ExternalLink, Eye, FileDown, LoaderCircle, Redo2, RotateCcw, Save, Search, Undo2 } from 'lucide-react'
-import type { ArticleDocument, DesktopApi, EditorBuffer, EditorRecovery, Result } from '../../../shared/contracts'
+import { ArrowLeft, Code2, Columns2, Download, ExternalLink, Eye, FileDown, Globe, LoaderCircle, Redo2, RotateCcw, Save, Search, Undo2 } from 'lucide-react'
+import type { ArticleDocument, DesktopApi, EditorBuffer, EditorRecovery, PreviewArticleResult, Result } from '../../../shared/contracts'
 import { Button, cn } from './ui'
 import { SourceEditor, type SourceEditorHandle } from './SourceEditor'
 import { MarkdownPreview } from './MarkdownPreview'
@@ -39,6 +39,8 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
   const [reloadPrompt, setReloadPrompt] = useState(false)
   const [externalPrompt, setExternalPrompt] = useState<null | 'dirty' | 'stale'>(null)
   const [externalSession, setExternalSession] = useState(false)
+  const [sitePrompt, setSitePrompt] = useState(false)
+  const [siteUnresolved, setSiteUnresolved] = useState<PreviewArticleResult | null>(null)
   const externalSessionRef = useRef(false)
   const setExternal = (value: boolean) => { externalSessionRef.current = value; setExternalSession(value) }
   const [ratio, setRatio] = useState(50)
@@ -183,6 +185,36 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
     try { await launchExternal() } catch (cause) { setError(message(cause)); setExternalPrompt(null) }
     finally { workingRef.current = false; setWorking(false) }
   }
+  const openSiteArticle = async (notice: string) => {
+    const result = await unwrap(api.openPreviewArticle(target))
+    if (result.kind === 'opened') setNotice(notice)
+    else setSiteUnresolved(result)
+  }
+  const requestSitePreview = async () => {
+    if (workingRef.current || loadingRecovery || recovery || externalSessionRef.current) return
+    setError(''); setNotice('')
+    if (dirtyRef.current) { setSitePrompt(true); return }
+    workingRef.current = true; setWorking(true)
+    try { await openSiteArticle('已在系统浏览器打开站点中的这篇文章。打开的是磁盘内容。') }
+    catch (cause) { setError(message(cause)) }
+    finally { workingRef.current = false; setWorking(false) }
+  }
+  const saveAndPreview = async () => {
+    const saved = await save()
+    if (!saved) { setSitePrompt(false); return }
+    workingRef.current = true; setWorking(true); setError('')
+    try { await openSiteArticle('已保存，并在系统浏览器打开磁盘上的文章。'); setSitePrompt(false) }
+    catch (cause) { setError(message(cause)); setSitePrompt(false) }
+    finally { workingRef.current = false; setWorking(false) }
+  }
+  const discardAndPreview = async () => {
+    const discarded = await discard()
+    if (!discarded) return
+    workingRef.current = true; setWorking(true); setError('')
+    try { await openSiteArticle('已放弃编辑区修改，并打开磁盘上的文章。'); setSitePrompt(false) }
+    catch (cause) { setError(message(cause)); setSitePrompt(false) }
+    finally { workingRef.current = false; setWorking(false) }
+  }
   const restoreRecovery = () => {
     if (!recovery) return
     baseRevision.current = recovery.baseRevision
@@ -195,7 +227,7 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
     {error && <div className="editor-error" role="alert">{error}</div>}
     {externalSession && <section className="external-editor-guide" aria-label="正在使用外部编辑器"><ExternalLink size={52} strokeWidth={1.25} aria-hidden="true" /><h2>正在使用外部编辑器</h2><p>文件已使用系统默认程序打开，您可以在外部编辑器中进行编辑。编辑完成后，请点击下方按钮重新加载内容。</p><Button disabled={working} onClick={() => void finishExternal()}>{working ? <LoaderCircle size={16} className="spin" /> : <Download size={16} />}重新加载</Button></section>}
     <div className="editor-workspace" hidden={externalSession || undefined}>
-    <div className="editor-toolbar"><div className="editor-modes" role="tablist" aria-label="编辑器视图">{([{ value: 'source', label: '源码', icon: Code2 }, { value: 'preview', label: '预览', icon: Eye }, { value: 'split', label: '左右分栏', icon: Columns2 }] as const).map(({ value, label, icon: Icon }) => <button key={value} role="tab" aria-selected={mode === value} onClick={() => setMode(value)}><Icon size={14} />{label}</button>)}</div><div className="editor-tools"><Button size="icon" variant="ghost" title="撤销" aria-label="撤销" disabled={working || !!recovery || loadingRecovery} onClick={() => cm.current?.undo()}><Undo2 size={15} /></Button><Button size="icon" variant="ghost" title="重做" aria-label="重做" disabled={working || !!recovery || loadingRecovery} onClick={() => cm.current?.redo()}><Redo2 size={15} /></Button><Button size="icon" variant="ghost" title="查找与替换" aria-label="查找与替换" onClick={() => { setMode(mode === 'preview' ? 'source' : mode); cm.current?.find() }}><Search size={15} /></Button><Button size="small" variant="ghost" title="用系统默认程序打开磁盘上的当前文章" aria-label="用外部编辑器打开" disabled={working || loadingRecovery || !!recovery} onClick={() => void requestExternal()}><ExternalLink size={15} />外部编辑器</Button><Button size="icon" variant="ghost" title="重新加载磁盘版本" aria-label="重新加载磁盘版本" disabled={working} onClick={() => dirty ? setReloadPrompt(true) : void reload()}><RotateCcw size={15} /></Button><Button size="icon" variant="ghost" title="另存编辑副本" aria-label="另存编辑副本" disabled={working} onClick={() => void exportCopy()}><FileDown size={15} /></Button></div></div>
+    <div className="editor-toolbar"><div className="editor-modes" role="tablist" aria-label="编辑器视图">{([{ value: 'source', label: '源码', icon: Code2 }, { value: 'preview', label: '预览', icon: Eye }, { value: 'split', label: '左右分栏', icon: Columns2 }] as const).map(({ value, label, icon: Icon }) => <button key={value} role="tab" aria-selected={mode === value} onClick={() => setMode(value)}><Icon size={14} />{label}</button>)}</div><div className="editor-tools"><Button size="icon" variant="ghost" title="撤销" aria-label="撤销" disabled={working || !!recovery || loadingRecovery} onClick={() => cm.current?.undo()}><Undo2 size={15} /></Button><Button size="icon" variant="ghost" title="重做" aria-label="重做" disabled={working || !!recovery || loadingRecovery} onClick={() => cm.current?.redo()}><Redo2 size={15} /></Button><Button size="icon" variant="ghost" title="查找与替换" aria-label="查找与替换" onClick={() => { setMode(mode === 'preview' ? 'source' : mode); cm.current?.find() }}><Search size={15} /></Button><Button size="small" variant="ghost" title="用系统默认程序打开磁盘上的当前文章" aria-label="用外部编辑器打开" disabled={working || loadingRecovery || !!recovery} onClick={() => void requestExternal()}><ExternalLink size={15} />外部编辑器</Button><Button size="small" variant="ghost" title="在 Astro 本地站点中打开当前文章。这不是 Markdown 基础预览。" aria-label="在站点中预览" disabled={working || loadingRecovery || !!recovery || externalSession} onClick={() => void requestSitePreview()}><Globe size={15} />站点预览</Button><Button size="icon" variant="ghost" title="重新加载磁盘版本" aria-label="重新加载磁盘版本" disabled={working} onClick={() => dirty ? setReloadPrompt(true) : void reload()}><RotateCcw size={15} /></Button><Button size="icon" variant="ghost" title="另存编辑副本" aria-label="另存编辑副本" disabled={working} onClick={() => void exportCopy()}><FileDown size={15} /></Button></div></div>
     {recovery && <div className="recovery-prompt"><span>发现 {new Date(recovery.updatedAt).toLocaleString('zh-CN')} 的未保存内容。{recovery.baseRevision !== base.current.revision && '磁盘版本已变化，恢复后保存会先检查冲突。'}</span><Button size="small" onClick={restoreRecovery}>恢复到编辑器</Button><Button size="small" variant="ghost" onClick={() => void discard()}>放弃恢复记录</Button></div>}
     <div className={cn('editor-panes', `editor-mode-${mode}`)}>
       <div className="editor-source-pane" style={{ width: mode === 'split' ? `${ratio}%` : undefined }}><SourceEditor ref={cm} initialSource={document.source} disabled={working || loadingRecovery || !!recovery || externalSession} onChange={change} onSave={() => void save()} onCursor={(line, column) => setCursor({ line, column })} /></div>
@@ -207,5 +239,7 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
     {reloadPrompt && <Modal title="重新加载磁盘版本" onCancel={() => { if (!working) setReloadPrompt(false) }}><p>当前编辑会先写入恢复记录，再加载磁盘版本。之后可从恢复记录取回或导出副本。</p><div className="dialog-actions"><Button disabled={working} onClick={() => setReloadPrompt(false)}>取消</Button><Button disabled={working} variant="primary" onClick={() => void reload()}>保留编辑并加载</Button></div></Modal>}
     {externalPrompt === 'dirty' && <Modal title="用外部编辑器打开" onCancel={() => { if (!working) setExternalPrompt(null) }}><p>系统默认程序打开的是磁盘上的文章。打开后编辑区会暂停，直到重新加载。请先保存或放弃编辑区中的修改。取消会保留编辑区，并且不会打开外部程序。</p><div className="dialog-actions"><Button disabled={working} onClick={() => setExternalPrompt(null)}>取消</Button><Button disabled={working} onClick={() => void discardAndOpen()}>放弃修改并打开</Button><Button disabled={working} variant="primary" onClick={() => void saveAndOpen()}>保存并打开</Button></div></Modal>}
     {externalPrompt === 'stale' && <Modal title="磁盘内容已变化" onCancel={() => { if (!working) setExternalPrompt(null) }}><p>磁盘上的文章与编辑区打开时的版本不同。重新加载会替换编辑区。取消则保持编辑区，并且不打开外部编辑器。</p><div className="dialog-actions"><Button disabled={working} onClick={() => setExternalPrompt(null)}>取消</Button><Button disabled={working} variant="primary" onClick={() => void reloadAndOpen()}>重新加载并打开</Button></div></Modal>}
+    {sitePrompt && <Modal title="在站点中预览" onCancel={() => { if (!working) setSitePrompt(false) }}><p>本地站点读取的是磁盘上的文章，不是编辑区里尚未保存的内容。请先保存或放弃修改。取消不会打开浏览器。保存失败或发生冲突时不会打开。</p><div className="dialog-actions"><Button disabled={working} onClick={() => setSitePrompt(false)}>取消</Button><Button disabled={working} onClick={() => void discardAndPreview()}>放弃修改并预览</Button><Button disabled={working} variant="primary" onClick={() => void saveAndPreview()}>保存并预览</Button></div></Modal>}
+    {siteUnresolved && <Modal title="无法确定文章地址" onCancel={() => setSiteUnresolved(null)}><p>{siteUnresolved.message}</p><div className="dialog-actions"><Button onClick={() => setSiteUnresolved(null)}>取消</Button><Button variant="primary" disabled={!siteUnresolved.homepage} onClick={() => void (async () => { try { await unwrap(api.openPreviewHome()); setNotice('已打开站点首页。尚未打开具体文章。'); setSiteUnresolved(null) } catch (cause) { setError(message(cause)) } })()}>打开站点首页</Button></div></Modal>}
   </section>
 })

@@ -16,11 +16,8 @@ export interface AssetService {
   importImage(input: { articlePath: string; sourcePath: string; alt: string }): Promise<{ relativePath: string; markdown: string }>
 }
 export interface AstroProcessService {
-  /** Run npm run dev in the selected project, retaining its pre-script; check Node/npm/dependencies first. */
-  start(project: ProjectInfo): Promise<{ processId: string; url: string }>
-  stop(ownedProcessId: string): Promise<void>
+  /** Local preview start, stop, and article URLs are implemented on DesktopApi. Production build is not. */
   build(project: ProjectInfo): Promise<{ success: boolean; logPath: string }>
-  resolveArticleUrl(project: ProjectInfo, article: ArticleDocument): Promise<string>
 }
 export interface GitWriteService {
   diff(relativePaths: string[]): Promise<string>

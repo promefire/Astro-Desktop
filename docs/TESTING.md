@@ -1,5 +1,21 @@
 # 测试记录
 
+## 2026-10-12：真实本地预览
+
+本次结果：TypeScript strict 通过；设置真实博客变量后 **53 / 53** 个单元 / 文件系统测试通过（9 个文件）；Main / Preload / Renderer 构建通过；完整 Electron E2E **7 / 7** 通过；依赖审计 **0 个已知漏洞**。没有新增依赖。没有在 `F:\blog\Astro_Blog` 上执行 predev、dev、build、commit 或 push。
+
+命令：`npm run typecheck`、`$env:ASTRO_BLOG_TEST_PATH = 'F:\blog\Astro_Blog'; npm test`、`npm run test:e2e`（含构建）、`npm audit`。
+
+新增 `tests/preview-core.test.ts`：日志有界缓冲、分块拼接、ANSI 去除和令牌隐藏；只接受最后一条本地 http 地址；Windows Path 与 `npm.cmd` 引用；RAW / HASH / PINYIN 与无法确定的 slug 规则。
+
+新增 `tests/preview-process.test.ts`：隔离临时项目中 predev 真实执行，HTTP 可访问后才变为运行中，并结束本次进程树；无关端口上的服务在停止后仍然存活；脚本失败、超时、缺少 dev 脚本、缺少 Astro 依赖；切换项目后旧日志不进入新状态；无效 Node / npm 不写入设置；已验证的普通文章和 AI 日报地址才会打开，缺少 slug 配置时不调用打开函数；含中文和空格的 `npm.cmd` 可以启动。这些项目里的 `node_modules/astro` 只用于依赖检查，不代替真实 Astro。
+
+新增 `tests/preview-astro.test.ts`：在隔离的中文路径项目中用 npm 安装真实 `astro@5`，执行带 predev 的 `npm run dev`，HTTP 读到页面正文，停止后端口关闭。
+
+新增 `tests/e2e/preview.spec.ts`：Electron UI → Preload → Main → 受控 dev 进程。启动后状态为运行中，predev 已执行；系统打开函数只收到面板上的本地地址。停止后该地址不可访问。未保存正文取消「在站点中预览」后，磁盘文章不变。截图 `docs/images/preview-running.png` 来自 `F:\tmp` 下的隔离项目。已有保存和外部编辑器 E2E 同时通过。
+
+已在本机 Windows 验证。macOS 与 Linux 的进程树、`npm.cmd` 和注册表 Path 尚未验收。客户端不会自动安装依赖，也不会结束用户自己启动的 Node 进程。
+
 ## 2026-10-12：外部编辑器
 
 本次结果：TypeScript strict 通过；设置真实博客变量后 **43 / 43** 个单元 / 文件系统测试通过（6 个文件）；Main / Preload / Renderer 构建通过；完整 Electron E2E **6 / 6** 通过；依赖审计 **0 个已知漏洞**。没有新增依赖，没有执行原博客 dev / build / commit / push。

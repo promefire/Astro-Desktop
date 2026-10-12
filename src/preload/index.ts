@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../shared/contracts'
-import type { DesktopApi } from '../shared/contracts'
+import type { DesktopApi, PreviewState } from '../shared/contracts'
 
 // Expose only named, typed operations, never ipcRenderer or a general invoke method.
 const api: DesktopApi = {
@@ -22,6 +22,19 @@ const api: DesktopApi = {
   exportEditorCopy: (input) => ipcRenderer.invoke(IPC.exportEditorCopy, input),
   checkExternalEditor: () => ipcRenderer.invoke(IPC.checkExternalEditor),
   openExternalEditor: (input) => ipcRenderer.invoke(IPC.openExternalEditor, input),
+  getPreview: () => ipcRenderer.invoke(IPC.getPreview),
+  checkPreview: () => ipcRenderer.invoke(IPC.checkPreview),
+  startPreview: () => ipcRenderer.invoke(IPC.startPreview),
+  stopPreview: () => ipcRenderer.invoke(IPC.stopPreview),
+  choosePreviewRuntime: () => ipcRenderer.invoke(IPC.choosePreviewRuntime),
+  clearPreviewRuntime: () => ipcRenderer.invoke(IPC.clearPreviewRuntime),
+  openPreviewHome: () => ipcRenderer.invoke(IPC.openPreviewHome),
+  openPreviewArticle: (input) => ipcRenderer.invoke(IPC.openPreviewArticle, input),
+  onPreviewState: (listener) => {
+    const callback = (_event: unknown, snapshot: PreviewState) => listener(snapshot)
+    ipcRenderer.on(IPC.previewState, callback)
+    return () => { ipcRenderer.removeListener(IPC.previewState, callback) }
+  },
   setEditorDirty: (dirty) => ipcRenderer.send(IPC.setEditorDirty, dirty),
   onCloseRequested: (listener) => { const callback = () => listener(); ipcRenderer.on(IPC.closeRequested, callback); return () => { ipcRenderer.removeListener(IPC.closeRequested, callback) } },
   closeWindow: () => ipcRenderer.invoke(IPC.closeWindow),

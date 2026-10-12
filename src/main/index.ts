@@ -7,6 +7,7 @@ import { IPC } from '../shared/contracts'
 import type { Result, Theme } from '../shared/contracts'
 import { createServices, ServiceError } from './services'
 import { exportInput, writeEditorCopy } from './services/export-copy'
+import { localOrigin } from './services/preview-url'
 
 const runtimeDir = typeof __dirname === 'string' ? __dirname : dirname(fileURLToPath(import.meta.url))
 // Test sessions use a separate profile; packaged builds always use the normal userData directory.
@@ -82,6 +83,38 @@ function registerHandlers(): void {
   handle(IPC.listEditorRecoveries, () => services.editor.listRecoveries())
   handle(IPC.checkExternalEditor, () => services.externalEditor.check())
   handle(IPC.openExternalEditor, (input) => services.externalEditor.open(input, (file) => shell.openPath(file)))
+  const openVerified = async (url: string) => {
+    const origin = localOrigin(url)
+    if (!origin || (url !== `${origin}/` && !url.startsWith(`${origin}/`))) throw new ServiceError('UNSAFE_URL', '只能打开已验证的本地预览地址。')
+    await shell.openExternal(url)
+  }
+  handle(IPC.getPreview, async () => services.preview.status())
+  handle(IPC.checkPreview, () => services.preview.check())
+  handle(IPC.startPreview, () => services.preview.start())
+  handle(IPC.stopPreview, () => services.preview.stop())
+  handle(IPC.clearPreviewRuntime, () => services.preview.clearRuntime())
+  handle(IPC.openPreviewHome, () => services.preview.openHome(openVerified))
+  handle(IPC.openPreviewArticle, (input) => {
+    if (!input || typeof input !== 'object') throw new ServiceError('INVALID_PREVIEW_INPUT', '文章参数无效。')
+    const relativePath = (input as { relativePath?: unknown }).relativePath
+    if (typeof relativePath !== 'string') throw new ServiceError('INVALID_PREVIEW_INPUT', '文章参数无效。')
+    return services.preview.openArticle(relativePath, openVerified)
+  })
+  handle(IPC.choosePreviewRuntime, async () => {
+    if (!mainWindow) throw new Error('主窗口不可用。')
+    const node = await dialog.showOpenDialog(mainWindow, { title: '选择 node.exe', properties: ['openFile'], filters: [{ name: 'node.exe', extensions: ['exe'] }] })
+    if (node.canceled || !node.filePaths[0]) return null
+    const npm = await dialog.showOpenDialog(mainWindow, { title: '选择 npm.cmd', properties: ['openFile'], filters: [{ name: 'npm.cmd', extensions: ['cmd'] }] })
+    if (npm.canceled || !npm.filePaths[0]) return null
+    return services.preview.configure(node.filePaths[0], npm.filePaths[0])
+  })
+  services.preview.subscribe((snapshot) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(IPC.previewState, snapshot) })
+  let previewStopped = false
+  app.on('before-quit', (event) => {
+    if (previewStopped || !services.preview.hasOwnedProcess()) { previewStopped = true; return }
+    event.preventDefault()
+    void services.preview.shutdown().finally(() => { previewStopped = true; app.quit() })
+  })
   handle(IPC.exportEditorCopy, async value => {
     const input = exportInput(value)
     if (!mainWindow) throw new Error('主窗口不可用。')

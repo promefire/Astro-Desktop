@@ -9,6 +9,7 @@ import { readGit } from './git'
 import { createDraft, validateDraftInput } from './drafts'
 import { createEditorService } from './editor'
 import { inspectDefaultEditors, missingAssociationMessage, openWithDefaultApp, type DefaultPathOpener, type RegistryQuery } from './external-editor'
+import { createPreviewService } from './preview'
 
 export { ServiceError } from './errors'
 
@@ -16,6 +17,11 @@ export function createServices(settingsFilePath: string) {
   const settings = createSettingsService(settingsFilePath)
   const editor = createEditorService(path.join(path.dirname(settingsFilePath), 'editor'))
   let active: ProjectInfo | null = null
+  const preview = createPreviewService({
+    project: () => active,
+    runtimeSetting: async () => (await settings.get()).previewRuntime,
+    saveRuntime: (setting) => settings.setPreviewRuntime(setting),
+  })
   let projectQueue: Promise<unknown> = Promise.resolve()
   function serialProject<T>(operation: () => Promise<T>): Promise<T> {
     const result = projectQueue.then(operation)
@@ -27,9 +33,11 @@ export function createServices(settingsFilePath: string) {
     return active
   }
   async function activate(directory: string): Promise<ProjectInfo> {
+    const previous = active?.path ?? null
     const project = await inspectProject(directory)
     await settings.rememberProject(project.path, project.name)
     active = project
+    if (previous !== project.path) await preview.release(previous ?? '')
     return structuredClone(project)
   }
   async function resolve(project: ProjectInfo, relativePath: string): Promise<string> {
@@ -123,6 +131,7 @@ export function createServices(settingsFilePath: string) {
         return { articlePath }
       }),
     },
+    preview,
     editor: {
       checkpoint: (input: unknown) => serialProject(() => editor.checkpoint(current(), input)),
       getRecovery: (input: unknown) => serialProject(() => editor.get(current(), input)),

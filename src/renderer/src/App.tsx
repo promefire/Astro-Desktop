@@ -2,19 +2,20 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { NavLink, useBlocker, useLocation, useNavigate } from 'react-router-dom'
 import {
   AlertCircle, ArrowDownUp, ArrowUpRight, BookOpen, Check, ChevronLeft, ChevronRight,
-  CircleHelp, Clock3, File, FileText, Folder, FolderOpen, GitBranch, Layers3,
+  CircleHelp, Clock3, File, FileText, Folder, FolderOpen, GitBranch, Globe, Layers3,
   LoaderCircle, Monitor, Moon, PanelRightClose, PanelRightOpen, RefreshCw, Search,
   Settings2, Sparkles, Sun, Tag, Trash2, X, Plus,
 } from 'lucide-react'
-import type { AppSettings, Article, ArticleDocument, ContentIndex, CreateDraftInput, DesktopApi, FileStatus, ProjectInfo, RecoveryIndex, Result, Theme } from '../../shared/contracts'
+import type { AppSettings, Article, ArticleDocument, ContentIndex, CreateDraftInput, DesktopApi, FileStatus, PreviewPhase, ProjectInfo, RecoveryIndex, Result, Theme } from '../../shared/contracts'
 import { Badge, Button, Input, cn } from './components/ui'
 import { CreateDraftDialog } from './components/CreateDraftDialog'
 import { ArticleEditor, type ArticleEditorHandle } from './components/ArticleEditor'
 import { RecoveriesDialog } from './components/RecoveriesDialog'
 import { ExternalEditorSettings } from './components/ExternalEditorSettings'
+import { PreviewPanel } from './components/PreviewPanel'
 import { Modal } from './components/Modal'
 
-const EMPTY_SETTINGS: AppSettings = { version: 1, theme: 'system', recentProjects: [], lastProjectPath: null }
+const EMPTY_SETTINGS: AppSettings = { version: 1, theme: 'system', recentProjects: [], lastProjectPath: null, previewRuntime: { nodePath: null, npmPath: null } }
 const EMPTY_INDEX: ContentIndex = { articles: [], issues: [], scannedAt: '' }
 const PAGE_SIZE = 12
 type LibraryView = 'all' | 'posts' | 'drafts' | 'daily'
@@ -66,6 +67,8 @@ function App() {
   const leaveAction = useRef<(() => void) | null>(null)
   const [recoveries, setRecoveries] = useState<RecoveryIndex>({ entries: [], issues: [] })
   const [recoveriesOpen, setRecoveriesOpen] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewPhase, setPreviewPhase] = useState<PreviewPhase>('idle')
   const [recoveryRefresh, setRecoveryRefresh] = useState(0)
   const blocker = useBlocker(() => editorDirty.current)
   const [inspectorOpen, setInspectorOpen] = useState(true)
@@ -101,6 +104,12 @@ function App() {
     const protectReload = (event: BeforeUnloadEvent) => { if (editorDirty.current) { event.preventDefault(); event.returnValue = '' } }
     window.addEventListener('beforeunload', protectReload)
     return () => { stop(); window.removeEventListener('beforeunload', protectReload) }
+  }, [api])
+  useEffect(() => {
+    if (!api) return
+    const stop = api.onPreviewState(snapshot => setPreviewPhase(snapshot.phase))
+    void unwrap(api.getPreview()).then(snapshot => setPreviewPhase(snapshot.phase)).catch(() => undefined)
+    return stop
   }, [api])
   const loadRecoveries = useCallback(async () => {
     if (!api || !project) return
@@ -323,7 +332,7 @@ function App() {
     <div className="workspace">
       <header className="topbar">
         <div className="project-context"><FolderOpen size={16} /><span title={project?.path}>{project?.name ?? '工作空间'}</span>{project && <><span className="context-divider">/</span><span className="branch" title={project.git.error ?? '本地 Git 分支'}><GitBranch size={14} />{project.git.branch ?? (project.git.isRepository ? '游离 HEAD' : '非 Git 仓库')}</span></>}</div>
-        <div className="topbar-actions">{project && <>{(recoveries.entries.length > 0 || recoveries.issues.length > 0) && <Button size="small" onClick={() => setRecoveriesOpen(true)}>恢复记录 ({recoveries.entries.length})</Button>}<Button size="small" variant="ghost" disabled={busyAll} onClick={() => requestLeave(() => void refresh())} aria-label="刷新文章"><RefreshCw size={15} className={busy ? 'spin' : ''} /><span>刷新</span></Button></>}<Button size="small" disabled={!api || busyAll} onClick={() => requestLeave(() => void openProject())}><FolderOpen size={15} />打开项目</Button></div>
+        <div className="topbar-actions">{project && <>{(recoveries.entries.length > 0 || recoveries.issues.length > 0) && <Button size="small" onClick={() => setRecoveriesOpen(true)}>恢复记录 ({recoveries.entries.length})</Button>}<Button size="small" variant={previewPhase === 'running' ? 'primary' : 'secondary'} onClick={() => setPreviewOpen(true)}><Globe size={15} />{previewPhase === 'running' ? '预览运行中' : '本地预览'}</Button><Button size="small" variant="ghost" disabled={busyAll} onClick={() => requestLeave(() => void refresh())} aria-label="刷新文章"><RefreshCw size={15} className={busy ? 'spin' : ''} /><span>刷新</span></Button></>}<Button size="small" disabled={!api || busyAll} onClick={() => requestLeave(() => void openProject())}><FolderOpen size={15} />打开项目</Button></div>
       </header>
 
       {error && <div className="error-banner" role="alert"><AlertCircle size={17} /><span>{error}</span><Button size="icon" variant="ghost" aria-label="关闭错误提示" onClick={() => setError(null)}><X size={15} /></Button></div>}
@@ -363,6 +372,7 @@ function App() {
     {createOpen && project && <CreateDraftDialog categories={[...new Set(index.articles.filter(article => article.kind === 'post').map(article => article.category).filter((value): value is string => !!value))].sort((a, b) => a.localeCompare(b, 'zh-CN'))} availableTags={[...new Set(index.articles.filter(article => article.kind === 'post').flatMap(article => article.tags))].sort((a, b) => a.localeCompare(b, 'zh-CN'))} onCreate={createDraft} onClose={() => setCreateOpen(false)} />}
     {leaveOpen && <Modal title="文章有未保存的修改" onCancel={cancelLeave}><p>保存后继续，或明确放弃本次修改。保存失败时会留在编辑器。</p><div className="dialog-actions"><Button disabled={leaving} onClick={cancelLeave}>取消</Button><Button disabled={leaving} onClick={() => void finishLeave(false)}>放弃修改</Button><Button disabled={leaving} variant="primary" onClick={() => void finishLeave(true)}>保存并继续</Button></div></Modal>}
     {recoveriesOpen && api && <RecoveriesDialog api={api} index={recoveries} onClose={() => setRecoveriesOpen(false)} onChanged={() => void loadRecoveries()} onOpen={path => requestLeave(() => { selectArticle(path); setRecoveryRefresh(value => value + 1); if (!location.pathname.startsWith('/library/')) navigate('/library/all') })} />}
+    {previewOpen && api && <PreviewPanel api={api} onClose={() => setPreviewOpen(false)} />}
   </div>
 }
 
@@ -399,7 +409,7 @@ function SettingsView({ api, project, settings, themeBusy, onTheme, onOpenFolder
     <section className="settings-section"><div className="settings-section-title"><div><h2>外观</h2><p>为你的工作环境选择合适的界面。</p></div></div><div className="theme-options">{([{ value: 'light', label: '浅色', icon: Sun }, { value: 'dark', label: '深色', icon: Moon }, { value: 'system', label: '跟随系统', icon: Monitor }] as const).map(({ value, label, icon: Icon }) => <button key={value} className={cn('theme-option', settings.theme === value && 'is-active')} aria-pressed={settings.theme === value} disabled={themeBusy} onClick={() => void onTheme(value)}><Icon size={19} /><span>{label}</span>{settings.theme === value && <Check size={15} />}</button>)}</div></section>
     {api && <ExternalEditorSettings api={api} />}
     <section className="settings-section"><div className="settings-section-title"><div><h2>博客项目</h2><p>读取现有博客文件与配置，不执行项目脚本。</p></div>{project && <Button size="small" onClick={onOpenFolder}><FolderOpen size={15} />打开文件夹</Button>}</div>{project ? <dl className="settings-facts"><Property label="项目名称">{project.name}</Property><Property label="本地目录"><code>{project.path}</code></Property><Property label="适配器">promefire / Astro_Blog</Property><Property label="Astro 版本">{project.astroVersion}</Property><Property label="包管理器">{project.packageManager ?? '未声明'}</Property><Property label="普通文章"><code>{project.contentDirectories.post}</code></Property><Property label="AI 日报"><code>{project.contentDirectories['ai-daily']}</code></Property></dl> : <div className="settings-no-project"><FolderOpen size={25} /><p>选择博客目录后查看项目配置。</p><Button onClick={onOpenProject} disabled={busy}>打开项目</Button></div>}</section>
-    {project && <><section className="settings-section"><div className="settings-section-title"><div><h2>Git 信息</h2><p>来自本地仓库的只读信息。</p></div></div><dl className="settings-facts"><Property label="Git 可用">{project.git.available ? '可用' : '不可用'}</Property><Property label="仓库状态">{project.git.isRepository ? '已识别 Git 仓库' : '非 Git 仓库'}</Property><Property label="当前分支">{project.git.branch ?? '未识别'}</Property><Property label="远程地址"><code>{project.git.remote ?? '未配置'}</code></Property></dl>{project.git.error && <p className="settings-warning"><AlertCircle size={15} />{project.git.error}</p>}</section><section className="settings-section"><div className="settings-section-title"><div><h2>项目脚本</h2><p>读取自 package.json，后续用于预览与构建服务。</p></div><Badge>只读</Badge></div>{Object.keys(project.scripts).length ? <dl className="script-list">{Object.entries(project.scripts).map(([name, command]) => <div key={name}><dt>{name}</dt><dd><code>{command}</code></dd></div>)}</dl> : <p className="muted">未声明脚本</p>}</section>{(project.warnings.length > 0 || issues.length > 0) && <section className="settings-section"><div className="settings-section-title"><div><h2>读取提示</h2><p>修正文件后刷新内容库以重新检查。</p></div><Badge tone="warning">{project.warnings.length + issues.length} 项</Badge></div><ul className="settings-issues">{project.warnings.map((warning, idx) => <li key={`project-${idx}`}><AlertCircle size={16} /><p>{warning}</p></li>)}{issues.map((issue, idx) => <li key={`file-${idx}`}><AlertCircle size={16} /><div><code>{issue.path}</code><p>{issue.message}</p></div></li>)}</ul></section>}</>}
+    {project && <><section className="settings-section"><div className="settings-section-title"><div><h2>Git 信息</h2><p>来自本地仓库的只读信息。</p></div></div><dl className="settings-facts"><Property label="Git 可用">{project.git.available ? '可用' : '不可用'}</Property><Property label="仓库状态">{project.git.isRepository ? '已识别 Git 仓库' : '非 Git 仓库'}</Property><Property label="当前分支">{project.git.branch ?? '未识别'}</Property><Property label="远程地址"><code>{project.git.remote ?? '未配置'}</code></Property></dl>{project.git.error && <p className="settings-warning"><AlertCircle size={15} />{project.git.error}</p>}</section><section className="settings-section"><div className="settings-section-title"><div><h2>项目脚本</h2><p>读取自 package.json。本地预览会执行 dev，不会在这里改写脚本。</p></div><Badge>只读</Badge></div>{Object.keys(project.scripts).length ? <dl className="script-list">{Object.entries(project.scripts).map(([name, command]) => <div key={name}><dt>{name}</dt><dd><code>{command}</code></dd></div>)}</dl> : <p className="muted">未声明脚本</p>}</section>{(project.warnings.length > 0 || issues.length > 0) && <section className="settings-section"><div className="settings-section-title"><div><h2>读取提示</h2><p>修正文件后刷新内容库以重新检查。</p></div><Badge tone="warning">{project.warnings.length + issues.length} 项</Badge></div><ul className="settings-issues">{project.warnings.map((warning, idx) => <li key={`project-${idx}`}><AlertCircle size={16} /><p>{warning}</p></li>)}{issues.map((issue, idx) => <li key={`file-${idx}`}><AlertCircle size={16} /><div><code>{issue.path}</code><p>{issue.message}</p></div></li>)}</ul></section>}</>}
   </div></main>
 }
 
