@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { readdir, realpath, stat } from 'node:fs/promises'
-import type { ArticleDocument, ContentIndex, ProjectInfo } from '../../shared/contracts'
+import type { ArticleDocument, ArticleTarget, ContentIndex, OpenExternalEditorResult, ProjectInfo } from '../../shared/contracts'
 import { CONTENT_DIRECTORIES, contentKind, inspectProject, parseArticle } from '../adapters/promefire'
 import { ServiceError, errorMessage } from './errors'
 import { ARTICLE_SIZE_LIMIT, isWithin, normalizedRelative, readBounded, safePath } from './paths'
@@ -8,6 +8,7 @@ import { createSettingsService } from './settings'
 import { readGit } from './git'
 import { createDraft, validateDraftInput } from './drafts'
 import { createEditorService } from './editor'
+import { inspectExternalEditor, launchExternalEditor } from './external-editor'
 
 export { ServiceError } from './errors'
 
@@ -54,7 +55,7 @@ export function createServices(settingsFilePath: string) {
     })
   }
   return {
-    settings: { get: settings.get, setTheme: settings.setTheme, forgetProject: settings.forgetProject },
+    settings: { get: settings.get, setTheme: settings.setTheme, forgetProject: settings.forgetProject, setExternalEditor: settings.setExternalEditor, checkExternalEditor: settings.checkExternalEditor },
     projects: {
       select: (directory: string) => serialProject(() => activate(directory)),
       openRecent: (directory: string) => serialProject(async () => {
@@ -105,6 +106,22 @@ export function createServices(settingsFilePath: string) {
         index.articles.sort((a, b) => (b.published ?? '').localeCompare(a.published ?? '') || a.relativePath.localeCompare(b.relativePath))
         return index
       },
+    },
+    externalEditor: {
+      open: (value: unknown): Promise<OpenExternalEditorResult> => serialProject(async () => {
+        const project = current()
+        if (!value || typeof value !== 'object') throw new ServiceError('INVALID_EDITOR_INPUT', '文章参数无效。')
+        const input = value as Partial<ArticleTarget>
+        if (input.projectPath !== project.path) throw new ServiceError('PROJECT_CHANGED', '当前项目已切换，请重新打开目标文章。')
+        const relativePath = normalizedRelative(input.relativePath ?? '')
+        const status = await inspectExternalEditor((await settings.get()).externalEditorPath)
+        if (status.state === 'unconfigured') throw new ServiceError('EDITOR_NOT_CONFIGURED', status.message)
+        if (status.state === 'missing') throw new ServiceError('EDITOR_NOT_FOUND', status.message)
+        if (status.state !== 'ready' || !status.path) throw new ServiceError('EDITOR_INVALID', status.message)
+        const articlePath = await resolve(project, relativePath)
+        await launchExternalEditor(status.path, articlePath)
+        return { editorPath: status.path, articlePath }
+      }),
     },
     editor: {
       checkpoint: (input: unknown) => serialProject(() => editor.checkpoint(current(), input)),

@@ -264,6 +264,13 @@ dd { margin: 0; overflow-wrap: anywhere; }
 .script-list > div { display: grid; grid-template-columns: 100px minmax(0, 1fr); border-radius: 5px; background: var(--subtle); padding: 12px 15px; align-items: start; gap: 10px; }
 .script-list dt { font-family: Consolas, monospace; color: var(--accent-text); font-size: 11px; }
 .script-list dd { color: var(--secondary); font-size: 11px; line-height: 1.6; }
+.editor-config-path, .editor-config-note, .editor-config-status { font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.editor-config-path { margin: 0; color: var(--secondary); }
+.editor-config-path code { font-size: 11px; }
+.editor-config-note { margin: 10px 0 0; color: var(--muted); font-size: 11px; }
+.editor-config-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.editor-config-actions + .settings-warning { margin-top: 12px; }
+.editor-config-status { margin: 12px 0 0; color: var(--secondary); }
 .settings-warning { display: flex; align-items: start; gap: 8px; font-size: 11px; color: var(--warning-text); line-height: 1.8; }
 .settings-warning svg { margin-top: 3px; }
 .settings-issues { list-style: none; padding: 0; margin: 0; }

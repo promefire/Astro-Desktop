@@ -1,6 +1,6 @@
 # Astro Desktop
 
-面向 `promefire/Astro_Blog` 的 Windows 本地博客工作台。支持真实项目接入、普通文章 / AI 日报读取、新建普通草稿、CodeMirror 编辑、安全保存与恢复。Markdown / MDX 文件是唯一内容来源，没有模拟数据或数据库。
+面向 `promefire/Astro_Blog` 的 Windows 本地博客工作台。支持真实项目接入、普通文章 / AI 日报读取、新建普通草稿、CodeMirror 编辑、安全保存与恢复，以及用本机外部编辑器打开当前文章。Markdown / MDX 文件是唯一内容来源，没有模拟数据或数据库。
 
 客户端仓库：[promefire/Astro-Desktop](https://github.com/promefire/Astro-Desktop)。每完成一项独立功能，验证通过后提交并推送；具体约定见 [AGENTS.md](AGENTS.md)。
 

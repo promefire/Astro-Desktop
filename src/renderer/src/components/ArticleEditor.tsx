@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
-import { ArrowLeft, Code2, Columns2, Eye, FileDown, LoaderCircle, Redo2, RotateCcw, Save, Search, Undo2 } from 'lucide-react'
+import { ArrowLeft, Code2, Columns2, ExternalLink, Eye, FileDown, LoaderCircle, Redo2, RotateCcw, Save, Search, Undo2 } from 'lucide-react'
 import type { ArticleDocument, DesktopApi, EditorBuffer, EditorRecovery, Result } from '../../../shared/contracts'
 import { Button, cn } from './ui'
 import { SourceEditor, type SourceEditorHandle } from './SourceEditor'
@@ -37,6 +37,7 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
   const [recovery, setRecovery] = useState<EditorRecovery | null>(null)
   const [loadingRecovery, setLoadingRecovery] = useState(true)
   const [reloadPrompt, setReloadPrompt] = useState(false)
+  const [externalPrompt, setExternalPrompt] = useState<null | 'dirty' | 'stale'>(null)
   const [ratio, setRatio] = useState(50)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pending = useRef<Promise<unknown>>(Promise.resolve())
@@ -104,17 +105,19 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
   }
   useImperativeHandle(ref, () => ({ save, discard, isDirty: () => dirtyRef.current, isBusy: () => workingRef.current }))
 
-  const reload = async () => {
+  const reload = async (): Promise<boolean> => {
     workingRef.current = true; setWorking(true); stopTimer(); setError('')
     try {
       await pending.current
-      if (dirtyRef.current) await unwrap(api.checkpointEditor(input()))
+      const hadEdits = dirtyRef.current
+      if (hadEdits) await unwrap(api.checkpointEditor(input()))
       const next = await unwrap(api.readArticle(target.relativePath))
       base.current = next; baseRevision.current = next.revision
       replace(next.source); reportDirty(false); onSaved(next)
-      setNotice('已加载磁盘版本。之前的编辑保留在「恢复记录」中。')
+      setNotice(hadEdits ? '已加载磁盘版本。之前的编辑保留在「恢复记录」中。' : '已加载磁盘版本。')
       setRecovery(null); setReloadPrompt(false); onRecoveryChange()
-    } catch (cause) { setError(message(cause)) }
+      return true
+    } catch (cause) { setError(message(cause)); return false }
     finally { workingRef.current = false; setWorking(false) }
   }
   const exportCopy = async () => {
@@ -123,6 +126,49 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
       const destination = await unwrap(api.exportEditorCopy({ source: sourceRef.current, suggestedName: `副本-${target.relativePath.split('/').at(-1)}` }))
       if (destination) setNotice(`副本已写入：${destination}。原文章尚未保存。`)
     } catch (cause) { setError(message(cause)) }
+    finally { workingRef.current = false; setWorking(false) }
+  }
+  const launchExternal = async () => {
+    await unwrap(api.openExternalEditor(target))
+    setExternalPrompt(null)
+    setNotice('已用外部编辑器打开磁盘上的文章。编辑区未改动；外部修改后请重新加载。保存仍会检查版本，不会默认覆盖磁盘。')
+  }
+  const requestExternal = async () => {
+    if (workingRef.current || loadingRecovery || recovery) return
+    workingRef.current = true; setWorking(true); setError(''); setNotice('')
+    try {
+      const status = await unwrap(api.checkExternalEditor())
+      if (status.state !== 'ready') { setError(status.message); return }
+      if (dirtyRef.current) { setExternalPrompt('dirty'); return }
+      const disk = await unwrap(api.readArticle(target.relativePath))
+      if (disk.revision !== baseRevision.current) { setExternalPrompt('stale'); return }
+      await launchExternal()
+    } catch (cause) { setError(message(cause)) }
+    finally { workingRef.current = false; setWorking(false) }
+  }
+  const saveAndOpen = async () => {
+    const saved = await save()
+    if (!saved) { setExternalPrompt(null); return }
+    workingRef.current = true; setWorking(true); setError('')
+    try { await launchExternal() } catch (cause) { setError(message(cause)); setExternalPrompt(null) }
+    finally { workingRef.current = false; setWorking(false) }
+  }
+  const discardAndOpen = async () => {
+    const discarded = await discard()
+    if (!discarded) return
+    workingRef.current = true; setWorking(true); setError('')
+    try {
+      const disk = await unwrap(api.readArticle(target.relativePath))
+      if (disk.revision !== baseRevision.current) { setExternalPrompt('stale'); return }
+      await launchExternal()
+    } catch (cause) { setError(message(cause)); setExternalPrompt(null) }
+    finally { workingRef.current = false; setWorking(false) }
+  }
+  const reloadAndOpen = async () => {
+    const loaded = await reload()
+    if (!loaded) { setExternalPrompt(null); return }
+    workingRef.current = true; setWorking(true); setError('')
+    try { await launchExternal() } catch (cause) { setError(message(cause)); setExternalPrompt(null) }
     finally { workingRef.current = false; setWorking(false) }
   }
   const restoreRecovery = () => {
@@ -134,7 +180,7 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
 
   return <section className="article-editor" aria-label="文章编辑工作区" onKeyDownCapture={event => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); event.stopPropagation(); void save() } }}>
     <div className="editor-heading"><Button size="small" variant="ghost" onClick={onBack} disabled={working}><ArrowLeft size={16} />返回列表</Button><div className="editor-heading-title"><strong>{base.current.article.title}</strong><span>{target.relativePath}</span></div><span className={cn('editor-save-state', dirty && 'is-dirty')}>{dirty ? '未保存' : '已保存'}</span><Button variant="primary" size="small" disabled={!dirty || working || loadingRecovery || !!recovery} onClick={() => void save()}>{working ? <LoaderCircle size={15} className="spin" /> : <Save size={15} />}保存</Button></div>
-    <div className="editor-toolbar"><div className="editor-modes" role="tablist" aria-label="编辑器视图">{([{ value: 'source', label: '源码', icon: Code2 }, { value: 'preview', label: '预览', icon: Eye }, { value: 'split', label: '左右分栏', icon: Columns2 }] as const).map(({ value, label, icon: Icon }) => <button key={value} role="tab" aria-selected={mode === value} onClick={() => setMode(value)}><Icon size={14} />{label}</button>)}</div><div className="editor-tools"><Button size="icon" variant="ghost" title="撤销" aria-label="撤销" disabled={working || !!recovery || loadingRecovery} onClick={() => cm.current?.undo()}><Undo2 size={15} /></Button><Button size="icon" variant="ghost" title="重做" aria-label="重做" disabled={working || !!recovery || loadingRecovery} onClick={() => cm.current?.redo()}><Redo2 size={15} /></Button><Button size="icon" variant="ghost" title="查找与替换" aria-label="查找与替换" onClick={() => { setMode(mode === 'preview' ? 'source' : mode); cm.current?.find() }}><Search size={15} /></Button><Button size="icon" variant="ghost" title="重新加载磁盘版本" aria-label="重新加载磁盘版本" disabled={working} onClick={() => dirty ? setReloadPrompt(true) : void reload()}><RotateCcw size={15} /></Button><Button size="icon" variant="ghost" title="另存编辑副本" aria-label="另存编辑副本" disabled={working} onClick={() => void exportCopy()}><FileDown size={15} /></Button></div></div>
+    <div className="editor-toolbar"><div className="editor-modes" role="tablist" aria-label="编辑器视图">{([{ value: 'source', label: '源码', icon: Code2 }, { value: 'preview', label: '预览', icon: Eye }, { value: 'split', label: '左右分栏', icon: Columns2 }] as const).map(({ value, label, icon: Icon }) => <button key={value} role="tab" aria-selected={mode === value} onClick={() => setMode(value)}><Icon size={14} />{label}</button>)}</div><div className="editor-tools"><Button size="icon" variant="ghost" title="撤销" aria-label="撤销" disabled={working || !!recovery || loadingRecovery} onClick={() => cm.current?.undo()}><Undo2 size={15} /></Button><Button size="icon" variant="ghost" title="重做" aria-label="重做" disabled={working || !!recovery || loadingRecovery} onClick={() => cm.current?.redo()}><Redo2 size={15} /></Button><Button size="icon" variant="ghost" title="查找与替换" aria-label="查找与替换" onClick={() => { setMode(mode === 'preview' ? 'source' : mode); cm.current?.find() }}><Search size={15} /></Button><Button size="small" variant="ghost" title="用已配置的外部编辑器打开磁盘上的当前文章" aria-label="用外部编辑器打开" disabled={working || loadingRecovery || !!recovery} onClick={() => void requestExternal()}><ExternalLink size={15} />外部编辑器</Button><Button size="icon" variant="ghost" title="重新加载磁盘版本" aria-label="重新加载磁盘版本" disabled={working} onClick={() => dirty ? setReloadPrompt(true) : void reload()}><RotateCcw size={15} /></Button><Button size="icon" variant="ghost" title="另存编辑副本" aria-label="另存编辑副本" disabled={working} onClick={() => void exportCopy()}><FileDown size={15} /></Button></div></div>
     {error && <div className="editor-error" role="alert">{error}</div>}
     {recovery && <div className="recovery-prompt"><span>发现 {new Date(recovery.updatedAt).toLocaleString('zh-CN')} 的未保存内容。{recovery.baseRevision !== base.current.revision && '磁盘版本已变化，恢复后保存会先检查冲突。'}</span><Button size="small" onClick={restoreRecovery}>恢复到编辑器</Button><Button size="small" variant="ghost" onClick={() => void discard()}>放弃恢复记录</Button></div>}
     <div className={cn('editor-panes', `editor-mode-${mode}`)}>
@@ -144,5 +190,7 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
     </div>
     <div className="editor-footer"><span role="status">{loadingRecovery ? '检查恢复记录…' : notice || (dirty ? '编辑中，Ctrl+S 保存' : '本地文件 · Ctrl+S 保存')}</span><span>行 {cursor.line}，列 {cursor.column}</span></div>
     {reloadPrompt && <Modal title="重新加载磁盘版本" onCancel={() => { if (!working) setReloadPrompt(false) }}><p>当前编辑会先写入恢复记录，再加载磁盘版本。之后可从恢复记录取回或导出副本。</p><div className="dialog-actions"><Button disabled={working} onClick={() => setReloadPrompt(false)}>取消</Button><Button disabled={working} variant="primary" onClick={() => void reload()}>保留编辑并加载</Button></div></Modal>}
+    {externalPrompt === 'dirty' && <Modal title="用外部编辑器打开" onCancel={() => { if (!working) setExternalPrompt(null) }}><p>外部程序打开的是磁盘上的文章。请先保存或放弃编辑区中的修改。取消会保留编辑区，并且不会打开外部编辑器。</p><div className="dialog-actions"><Button disabled={working} onClick={() => setExternalPrompt(null)}>取消</Button><Button disabled={working} onClick={() => void discardAndOpen()}>放弃修改并打开</Button><Button disabled={working} variant="primary" onClick={() => void saveAndOpen()}>保存并打开</Button></div></Modal>}
+    {externalPrompt === 'stale' && <Modal title="磁盘内容已变化" onCancel={() => { if (!working) setExternalPrompt(null) }}><p>磁盘上的文章与编辑区打开时的版本不同。重新加载会替换编辑区。取消则保持编辑区，并且不打开外部编辑器。</p><div className="dialog-actions"><Button disabled={working} onClick={() => setExternalPrompt(null)}>取消</Button><Button disabled={working} variant="primary" onClick={() => void reloadAndOpen()}>重新加载并打开</Button></div></Modal>}
   </section>
 })

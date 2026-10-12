@@ -37,6 +37,8 @@ React Renderer 只调用 `window.astroDesktop`。Preload 使用 `contextBridge` 
 
 `content:save` 接收 projectPath、relativePath、source、baseRevision，主进程验证活动项目、真实路径、普通文件和前置版本；写临时文件并 sync、备份旧源码、再次核对 hash、rename 原子替换。损坏元数据停止保存。恢复记录与备份仅写 `userData/editor/`；保存前先持久化缓冲区，保存完成后的清理失败单独报告。副本必须由原生保存对话框提供目的路径，采用不覆盖创建。详细限制见 [EDITOR.md](EDITOR.md)。
 
+外部编辑器路径保存在客户端 `settings.json` 的 `externalEditorPath`。旧设置缺少该字段时按未配置读取，不因此覆盖原文件。打开文章时主进程复核活动项目和文章真实路径，再用 `spawn` 参数数组启动编辑器，`shell` 固定为 false。`.exe` 直接接收文章路径；`.cmd` / `.bat` 由 `SystemRoot\System32\cmd.exe` 以 `/d /v:off /s /c` 启动，不读取可被替换的 `ComSpec`。命令解释器本身不能被选为编辑器。进程保持运行视为已启动，立即非零退出视为启动失败。客户端不跟踪、不结束用户的编辑器进程，也不监视文章文件。
+
 ## 后续预览与发布
 
 预览按用户要求执行所选项目的 `npm run dev`，先检查 Windows 的 Node / npm / PATH 与依赖，保留现有前置脚本，并按实际 URL 转换定位文章；只停止自身启动的进程。发布需要明确文件范围，fetch 后安全整合远端日报，冲突或构建失败停止；推送成功仅可报告部署待确认。有关现有路由与部署的核实见 RESEARCH.md。
