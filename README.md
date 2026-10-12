@@ -1,6 +1,6 @@
 # Astro Desktop
 
-面向 `promefire/Astro_Blog` 的 Windows 本地博客工作台。支持真实项目接入、普通文章 / AI 日报读取、新建普通草稿、CodeMirror 编辑、安全保存与恢复，以及用本机外部编辑器打开当前文章。Markdown / MDX 文件是唯一内容来源，没有模拟数据或数据库。
+面向 `promefire/Astro_Blog` 的 Windows 本地博客工作台。支持真实项目接入、普通文章 / AI 日报读取、新建普通草稿、CodeMirror 编辑、安全保存与恢复，以及用系统默认程序打开当前文章。Markdown / MDX 文件是唯一内容来源，没有模拟数据或数据库。
 
 客户端仓库：[promefire/Astro-Desktop](https://github.com/promefire/Astro-Desktop)。每完成一项独立功能，验证通过后提交并推送；具体约定见 [AGENTS.md](AGENTS.md)。
 
@@ -47,6 +47,7 @@ node node_modules/electron/install.js
 - 搜索、类型 / 草稿 / 分类 / 标签筛选、排序、分页，右侧显示已保存属性。
 - CodeMirror 源码编辑，源码 / Markdown 基础预览 / 左右分栏；撤销重做、查找替换、Ctrl+S 保存。
 - 检测外部修改并停止覆盖，保存前备份，未保存导航与退出保护，本地编辑恢复记录和另存副本。
+- 用 Windows 为 `.md` / `.mdx` 登记的默认程序打开当前文章。打开后编辑区暂停，重新加载后才继续编辑。
 - 新建普通文章：标题必填，标签、单个分类和摘要可选；在真实 post 目录创建 `draft: true` 的 Markdown，同名自动加序号，创建后进入草稿。AI 日报不提供新增。
 - Git 本地状态、当前分支及脱敏远程地址；刷新与系统资源管理器定位。
 - 浅色、深色、跟随系统外观，设置保存在 Electron `userData` 下。
@@ -55,7 +56,7 @@ node node_modules/electron/install.js
 
 点击文章进入编辑器。右侧属性当前只读，修改标题、分类等需编辑源码中的 Frontmatter；保存成功后更新右栏。基础预览不执行 HTML / MDX，也不加载图片，不等同于完整 Astro 站点。恢复记录在停止输入 600 ms 后写入客户端目录，文章仍需手动保存。详见 [编辑与恢复](docs/EDITOR.md)。
 
-当前不实现文章删除、属性表单、外部编辑器、图片导入、Astro 站点预览、统计、克隆、Git 同步或发布。下一项为外部编辑器，完整顺序见 [开发计划](docs/ROADMAP.md)。
+当前不实现文章删除、属性表单、图片导入、Astro 站点预览、统计、克隆、Git 同步或发布。下一项为本地预览，完整顺序见 [开发计划](docs/ROADMAP.md)。
 
 ## 目录
 

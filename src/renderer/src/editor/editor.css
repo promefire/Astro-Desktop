@@ -11,6 +11,13 @@
 .editor-modes, .editor-tools { display: flex; align-items: center; gap: 3px; }
 .editor-modes button { display: flex; align-items: center; gap: 6px; padding: 7px 10px; font-size: 11px; border: 0; border-radius: 5px; background: transparent; color: var(--secondary); }
 .editor-modes button[aria-selected="true"] { color: var(--accent-text); background: var(--accent-soft); }
+.editor-workspace { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.editor-workspace[hidden] { display: none; }
+.external-editor-guide { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 48px 32px; }
+.external-editor-guide > svg { color: var(--muted); }
+.external-editor-guide h2 { margin: 22px 0 0; font-size: 20px; font-weight: 650; }
+.external-editor-guide p { max-width: 440px; margin: 14px 0 0; color: var(--secondary); font-size: 13px; line-height: 1.85; }
+.external-editor-guide .button { margin-top: 22px; }
 .editor-panes { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 .editor-source-pane, .editor-preview-pane { min-width: 0; width: 100%; height: 100%; }
 .editor-mode-source .editor-preview-pane, .editor-mode-preview .editor-source-pane { display: none; }

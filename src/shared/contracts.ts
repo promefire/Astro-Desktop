@@ -2,10 +2,9 @@ export type ContentKind = 'post' | 'ai-daily'
 export type Theme = 'light' | 'dark' | 'system'
 export type FileStatus = 'clean' | 'modified' | 'added' | 'untracked' | 'conflict' | 'ignored' | 'unknown'
 export interface RecentProject { path: string; name: string; lastOpened: string }
-export type ExternalEditorState = 'ready' | 'unconfigured' | 'missing' | 'invalid'
-export interface ExternalEditorStatus { path: string | null; state: ExternalEditorState; message: string }
-export interface OpenExternalEditorResult { editorPath: string; articlePath: string }
-export interface AppSettings { version: 1; theme: Theme; recentProjects: RecentProject[]; lastProjectPath: string | null; externalEditorPath: string | null }
+export interface ExternalEditorStatus { associations: Record<'.md' | '.mdx', 'ready' | 'missing'>; message: string }
+export interface OpenExternalEditorResult { articlePath: string }
+export interface AppSettings { version: 1; theme: Theme; recentProjects: RecentProject[]; lastProjectPath: string | null }
 export interface GitInfo { available: boolean; isRepository: boolean; branch: string | null; remote: string | null; error: string | null }
 export interface ProjectInfo {
   name: string; path: string; adapter: 'promefire-astro-blog'; astroVersion: string;
@@ -47,9 +46,7 @@ export interface DesktopApi {
   clearEditorRecovery(input: ArticleTarget): Promise<Result<void>>;
   listEditorRecoveries(): Promise<Result<RecoveryIndex>>;
   exportEditorCopy(input: { source: string; suggestedName: string }): Promise<Result<string | null>>;
-  setExternalEditor(path: string | null): Promise<Result<AppSettings>>;
   checkExternalEditor(): Promise<Result<ExternalEditorStatus>>;
-  selectExternalEditor(): Promise<Result<AppSettings | null>>;
   openExternalEditor(input: ArticleTarget): Promise<Result<OpenExternalEditorResult>>;
   setEditorDirty(dirty: boolean): void;
   onCloseRequested(listener: () => void): () => void;
@@ -67,6 +64,5 @@ export const IPC = {
   clearEditorRecovery: 'editor:clear-recovery', listEditorRecoveries: 'editor:list-recoveries',
   setEditorDirty: 'editor:dirty', closeRequested: 'window:close-requested', closeWindow: 'window:close',
   exportEditorCopy: 'editor:export-copy',
-  setExternalEditor: 'editor:set-external', checkExternalEditor: 'editor:check-external',
-  selectExternalEditor: 'editor:select-external', openExternalEditor: 'editor:open-external',
+  checkExternalEditor: 'editor:check-external', openExternalEditor: 'editor:open-external',
 } as const

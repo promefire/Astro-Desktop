@@ -3,18 +3,9 @@ import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { AppSettings, Theme } from '../../shared/contracts'
 import { ServiceError, errorMessage, isMissing } from './errors'
-import { assertEditorPathShape, inspectExternalEditor, resolveEditorFile } from './external-editor'
 import { readBounded } from './paths'
 
-function defaults(): AppSettings { return { version: 1, theme: 'system', recentProjects: [], lastProjectPath: null, externalEditorPath: null } }
-function readExternalEditor(value: object): string | null {
-  if (!('externalEditorPath' in value)) return null
-  const editorPath = (value as { externalEditorPath?: unknown }).externalEditorPath
-  if (editorPath === null) return null
-  if (typeof editorPath !== 'string') throw new Error('外部编辑器配置无效')
-  try { assertEditorPathShape(editorPath) } catch { throw new Error('外部编辑器配置无效') }
-  return editorPath
-}
+function defaults(): AppSettings { return { version: 1, theme: 'system', recentProjects: [], lastProjectPath: null } }
 function clone(settings: AppSettings): AppSettings { return structuredClone(settings) }
 function validate(value: unknown): AppSettings {
   if (!value || typeof value !== 'object') throw new Error('设置格式必须为对象')
@@ -27,7 +18,7 @@ function validate(value: unknown): AppSettings {
     }
   }
   if (v.lastProjectPath !== null && !v.recentProjects.some((p) => p.path === v.lastProjectPath)) throw new Error('最近项目与恢复记录不一致')
-  return { version: 1, theme: v.theme, recentProjects: v.recentProjects.map((p) => ({ path: p.path, name: p.name, lastOpened: p.lastOpened })), lastProjectPath: v.lastProjectPath, externalEditorPath: readExternalEditor(v) }
+  return { version: 1, theme: v.theme, recentProjects: v.recentProjects.map((p) => ({ path: p.path, name: p.name, lastOpened: p.lastOpened })), lastProjectPath: v.lastProjectPath }
 }
 
 export function createSettingsService(settingsFile: string) {
@@ -72,11 +63,6 @@ export function createSettingsService(settingsFile: string) {
       const settings = await load()
       return persist({ ...settings, recentProjects: settings.recentProjects.filter((p) => p.path !== projectPath), lastProjectPath: settings.lastProjectPath === projectPath ? null : settings.lastProjectPath })
     }),
-    setExternalEditor: (editorPath: string | null) => serial(async () => {
-      if (editorPath !== null) editorPath = await resolveEditorFile(editorPath)
-      return persist({ ...await load(), externalEditorPath: editorPath })
-    }),
-    checkExternalEditor: () => serial(async () => inspectExternalEditor((await load()).externalEditorPath)),
     rememberProject: (projectPath: string, name: string) => serial(async () => {
       const settings = await load()
       return persist({ ...settings, recentProjects: [{ path: projectPath, name, lastOpened: new Date().toISOString() }, ...settings.recentProjects.filter((p) => p.path !== projectPath)].slice(0, 10), lastProjectPath: projectPath })

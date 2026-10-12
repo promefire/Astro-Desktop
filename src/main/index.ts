@@ -80,21 +80,8 @@ function registerHandlers(): void {
   handle(IPC.getEditorRecovery, (input) => services.editor.getRecovery(input))
   handle(IPC.clearEditorRecovery, (input) => services.editor.clearRecovery(input))
   handle(IPC.listEditorRecoveries, () => services.editor.listRecoveries())
-  handle(IPC.setExternalEditor, (value) => {
-    if (value !== null && typeof value !== 'string') throw new ServiceError('EDITOR_INVALID', '外部编辑器路径无效。')
-    return services.settings.setExternalEditor(value === null ? null : stringArgument(value))
-  })
-  handle(IPC.checkExternalEditor, () => services.settings.checkExternalEditor())
-  handle(IPC.selectExternalEditor, async () => {
-    if (!mainWindow) throw new Error('主窗口不可用。')
-    const result = await dialog.showOpenDialog(mainWindow, {
-      title: '选择外部编辑器', buttonLabel: '使用此编辑器', properties: ['openFile', 'dontAddToRecent'],
-      filters: [{ name: '可执行文件', extensions: ['exe', 'cmd', 'bat'] }],
-    })
-    if (result.canceled || !result.filePaths[0]) return null
-    return services.settings.setExternalEditor(result.filePaths[0])
-  })
-  handle(IPC.openExternalEditor, (input) => services.externalEditor.open(input))
+  handle(IPC.checkExternalEditor, () => services.externalEditor.check())
+  handle(IPC.openExternalEditor, (input) => services.externalEditor.open(input, (file) => shell.openPath(file)))
   handle(IPC.exportEditorCopy, async value => {
     const input = exportInput(value)
     if (!mainWindow) throw new Error('主窗口不可用。')

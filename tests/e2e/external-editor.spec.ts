@@ -1,25 +1,18 @@
 import { test, expect, _electron as electron } from '@playwright/test'
-import { mkdir, mkdtemp, readFile, rm, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
 
-test('external editor keeps unsaved text, opens the real file, and reloads without overwriting conflicts', async ({}, testInfo) => {
+test('default Markdown app opens the real file without replacing unsaved text', async ({}, testInfo) => {
   const root = await mkdtemp(path.join(tmpdir(), 'astro-external-e2e-'))
   const blog = path.join(root, '中文 测试博客')
   const relative = 'src/contents/post/外部.md'
   const file = path.join(blog, relative)
-  const editorDir = path.join(root, '外部 编辑器')
-  const failing = path.join(editorDir, '失败.cmd')
-  const editor = path.join(editorDir, '打开 文章.cmd')
-  const copy = path.join(editorDir, 'opened-copy.md')
   await mkdir(path.dirname(file), { recursive: true })
   await mkdir(path.join(blog, 'src/contents/ai-daily'), { recursive: true })
-  await mkdir(editorDir, { recursive: true })
   await writeFile(path.join(blog, 'package.json'), JSON.stringify({ dependencies: { astro: '^5.3.0' } }))
   const original = '---\r\ntitle: 外部编辑测试\r\npublished: 2026-01-01\r\ndraft: true\r\n---\r\n正文\r\n'
   await writeFile(file, original)
-  await writeFile(failing, '@echo off\r\nexit /b 5\r\n')
-  await writeFile(editor, '@echo off\r\ncopy /y "%~1" "%~dp0opened-copy.md" >nul\r\nif errorlevel 1 exit /b 2\r\n>> "%~1" echo EXTERNAL_EDIT\r\nexit /b 0\r\n')
   const env: Record<string, string> = { ...Object.fromEntries(Object.entries(process.env).filter((item): item is [string, string] => item[1] !== undefined)), ASTRO_DESKTOP_USER_DATA: path.join(root, 'profile') }
   delete env.ELECTRON_RUN_AS_NODE
   delete env.ELECTRON_RENDERER_URL
@@ -27,33 +20,45 @@ test('external editor keeps unsaved text, opens the real file, and reloads witho
   const page = await app.firstWindow()
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
+  const mockOpen = (mode: 'fail' | 'record') => app.evaluate(({ shell }, mode) => {
+    const bucket = globalThis as { __astroOpenedPath?: string }
+    bucket.__astroOpenedPath = ''
+    shell.openPath = async (file: string) => {
+      if (mode === 'fail') return 'No application is associated with the specified file for this operation'
+      bucket.__astroOpenedPath = file
+      return ''
+    }
+  }, mode)
+  const recordedPath = () => app.evaluate(() => (globalThis as { __astroOpenedPath?: string }).__astroOpenedPath ?? '')
   try {
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 680))
+    await mockOpen('fail')
     await app.evaluate(({ dialog }, directory) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [directory] }) }, blog)
     await page.getByRole('button', { name: '选择博客目录', exact: true }).click()
-    await page.getByRole('button', { name: '查看文章：外部编辑测试', exact: true }).click()
-    await page.getByRole('button', { name: '用外部编辑器打开', exact: true }).click()
-    await expect(page.locator('.editor-error')).toContainText('尚未配置')
-    await expect(page.locator('.editor-footer')).not.toContainText('已用外部编辑器打开')
+    await expect(page.getByRole('button', { name: '查看文章：外部编辑测试', exact: true })).toBeVisible()
     await page.locator('a[href="#/settings"]').click()
-    await app.evaluate(({ dialog }, editorPath) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [editorPath] }) }, failing)
-    await page.getByRole('button', { name: '选择编辑器', exact: true }).click()
-    await expect(page.getByRole('region', { name: '外部编辑器' })).toContainText('失败.cmd')
-    await page.getByRole('button', { name: '检查编辑器', exact: true }).click()
-    await expect(page.getByRole('status')).toContainText('已找到外部编辑器文件')
+    await expect(page.getByRole('heading', { name: '项目设置', exact: true })).toBeVisible()
+    const editorSettings = page.locator('section[aria-label="外部编辑器"]')
+    await expect(editorSettings).toContainText('不需要在这里选择编辑器')
+    await page.getByRole('button', { name: '检查默认程序', exact: true }).click()
+    await expect(editorSettings).toContainText(/已设置 \.md|尚未设置 \.md/)
     await page.screenshot({ path: path.join(testInfo.outputDir, 'external-editor-settings.png'), animations: 'disabled' })
     await page.screenshot({ path: path.resolve('docs/images/external-editor-settings.png'), animations: 'disabled' })
     await page.locator('a[href="#/library/all"]').click()
-    await expect(page.getByRole('region', { name: '文章编辑工作区' })).toBeVisible()
+    await page.getByRole('button', { name: '查看文章：外部编辑测试', exact: true }).click()
+    const association = await page.evaluate(() => window.astroDesktop!.checkExternalEditor())
+    if (!association.ok) throw new Error(association.error)
     await page.getByRole('button', { name: '用外部编辑器打开', exact: true }).click()
-    await expect(page.locator('.editor-error')).toContainText('启动失败')
+    if (association.data.associations['.md'] !== 'ready') {
+      await expect(page.locator('.editor-error')).toContainText('尚未为 .md')
+      expect(await readFile(file, 'utf8')).toBe(original)
+      await expect.poll(recordedPath).toBe('')
+      expect(errors).toEqual([])
+      return
+    }
+    await expect(page.locator('.editor-error')).toContainText('尚未为 .md')
     expect(await readFile(file, 'utf8')).toBe(original)
-    await page.locator('a[href="#/settings"]').click()
-    await app.evaluate(({ dialog }, editorPath) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [editorPath] }) }, editor)
-    await page.getByRole('button', { name: '选择编辑器', exact: true }).click()
-    await expect(page.getByRole('region', { name: '外部编辑器' })).toContainText('打开 文章.cmd')
-    await page.locator('a[href="#/library/all"]').click()
-    await expect(page.getByRole('region', { name: '文章编辑工作区' })).toBeVisible()
+    await mockOpen('record')
     const sourceEditor = page.getByLabel('文章源码编辑器')
     await sourceEditor.click()
     await page.keyboard.press('Control+End')
@@ -67,31 +72,43 @@ test('external editor keeps unsaved text, opens the real file, and reloads witho
     await leave.getByRole('button', { name: '取消', exact: true }).click()
     await expect(page.locator('.editor-save-state')).toHaveText('未保存')
     await expect(sourceEditor).toContainText('UNSAVED')
-    await expect.poll(async () => readFile(copy, 'utf8').then(() => true, () => false)).toBe(false)
+    await expect.poll(recordedPath).toBe('')
     await page.getByRole('button', { name: '用外部编辑器打开', exact: true }).click()
     await leave.getByRole('button', { name: '保存并打开', exact: true }).click()
-    await expect(page.locator('.editor-footer')).toContainText('已用外部编辑器打开')
+    const guide = page.getByRole('region', { name: '正在使用外部编辑器' })
+    await expect(guide).toBeVisible()
+    await expect(guide).toContainText('请点击下方按钮重新加载内容')
+    await expect(page.getByLabel('文章源码编辑器')).toBeHidden()
+    await expect(page.locator('.editor-save-state')).toHaveText('外部编辑中')
+    await page.keyboard.insertText('SHOULD_NOT_LAND')
+    expect(await readFile(file, 'utf8')).not.toContain('SHOULD_NOT_LAND')
+    await expect(page.getByRole('button', { name: '保存', exact: true })).toBeDisabled()
+    const openedPath = await recordedPath()
+    expect(path.normalize(openedPath)).toBe(path.normalize(file))
+    await page.screenshot({ path: path.join(testInfo.outputDir, 'external-editor-active.png'), animations: 'disabled' })
+    await page.screenshot({ path: path.resolve('docs/images/external-editor-active.png'), animations: 'disabled' })
+    const saved = await readFile(file)
+    const edited = Buffer.concat([saved, Buffer.from('EXTERNAL_EDIT\r\n')])
+    await writeFile(file, edited)
+    await expect(guide).toBeVisible()
+    await guide.getByRole('button', { name: '重新加载', exact: true }).click()
+    await expect(guide).toBeHidden()
+    await expect(sourceEditor).toContainText('EXTERNAL_EDIT')
     await expect(sourceEditor).toContainText('UNSAVED')
-    await expect(sourceEditor).not.toContainText('EXTERNAL_EDIT')
-    const saved = await readFile(copy)
-    const edited = await readFile(file)
-    expect(edited.equals(Buffer.concat([saved, Buffer.from('EXTERNAL_EDIT\r\n')]))).toBe(true)
-    expect(edited.includes(Buffer.from('UNSAVED'))).toBe(true)
+    await expect(sourceEditor).not.toContainText('SHOULD_NOT_LAND')
+    const newer = Buffer.concat([edited, Buffer.from('NEWER\r\n')])
+    await writeFile(file, newer)
     await sourceEditor.click()
     await page.keyboard.press('Control+End')
     await page.keyboard.insertText('MORE')
     await page.getByRole('button', { name: '保存', exact: true }).click()
     await expect(page.locator('.editor-error')).toContainText('其他程序修改')
-    expect(await readFile(file)).toEqual(edited)
+    expect(await readFile(file)).toEqual(newer)
     expect((await readFile(file)).includes(Buffer.from('MORE'))).toBe(false)
     await page.getByRole('button', { name: '重新加载磁盘版本', exact: true }).click()
     await page.getByRole('button', { name: '保留编辑并加载', exact: true }).click()
-    await expect(sourceEditor).toContainText('EXTERNAL_EDIT')
+    await expect(sourceEditor).toContainText('NEWER')
     await expect(page.locator('.editor-save-state')).toHaveText('已保存')
-    await unlink(editor)
-    await page.locator('a[href="#/settings"]').click()
-    await page.getByRole('button', { name: '检查编辑器', exact: true }).click()
-    await expect(page.getByRole('alert')).toContainText('未安装')
     expect(errors).toEqual([])
   } finally {
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach(window => window.destroy())).catch(() => undefined)

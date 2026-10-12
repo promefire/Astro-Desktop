@@ -8,7 +8,7 @@ import { createSettingsService } from './settings'
 import { readGit } from './git'
 import { createDraft, validateDraftInput } from './drafts'
 import { createEditorService } from './editor'
-import { inspectExternalEditor, launchExternalEditor } from './external-editor'
+import { inspectDefaultEditors, missingAssociationMessage, openWithDefaultApp, type DefaultPathOpener, type RegistryQuery } from './external-editor'
 
 export { ServiceError } from './errors'
 
@@ -55,7 +55,7 @@ export function createServices(settingsFilePath: string) {
     })
   }
   return {
-    settings: { get: settings.get, setTheme: settings.setTheme, forgetProject: settings.forgetProject, setExternalEditor: settings.setExternalEditor, checkExternalEditor: settings.checkExternalEditor },
+    settings: { get: settings.get, setTheme: settings.setTheme, forgetProject: settings.forgetProject },
     projects: {
       select: (directory: string) => serialProject(() => activate(directory)),
       openRecent: (directory: string) => serialProject(async () => {
@@ -108,19 +108,19 @@ export function createServices(settingsFilePath: string) {
       },
     },
     externalEditor: {
-      open: (value: unknown): Promise<OpenExternalEditorResult> => serialProject(async () => {
+      check: (query?: RegistryQuery) => inspectDefaultEditors(query),
+      open: (value: unknown, openPath: DefaultPathOpener, associations = inspectDefaultEditors): Promise<OpenExternalEditorResult> => serialProject(async () => {
         const project = current()
         if (!value || typeof value !== 'object') throw new ServiceError('INVALID_EDITOR_INPUT', '文章参数无效。')
         const input = value as Partial<ArticleTarget>
         if (input.projectPath !== project.path) throw new ServiceError('PROJECT_CHANGED', '当前项目已切换，请重新打开目标文章。')
         const relativePath = normalizedRelative(input.relativePath ?? '')
-        const status = await inspectExternalEditor((await settings.get()).externalEditorPath)
-        if (status.state === 'unconfigured') throw new ServiceError('EDITOR_NOT_CONFIGURED', status.message)
-        if (status.state === 'missing') throw new ServiceError('EDITOR_NOT_FOUND', status.message)
-        if (status.state !== 'ready' || !status.path) throw new ServiceError('EDITOR_INVALID', status.message)
         const articlePath = await resolve(project, relativePath)
-        await launchExternalEditor(status.path, articlePath)
-        return { editorPath: status.path, articlePath }
+        const extension = articlePath.toLowerCase().endsWith('.mdx') ? '.mdx' : '.md'
+        const status = await associations()
+        if (status.associations[extension] !== 'ready') throw new ServiceError('EDITOR_NOT_FOUND', missingAssociationMessage(extension))
+        await openWithDefaultApp(articlePath, openPath)
+        return { articlePath }
       }),
     },
     editor: {
