@@ -1,10 +1,10 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
-import { ArrowLeft, Code2, Columns2, Download, ExternalLink, Eye, FileDown, Globe, ImagePlus, LoaderCircle, Redo2, RotateCcw, Save, Search, Send, Undo2 } from 'lucide-react'
+import { ArrowLeft, Download, ExternalLink, FileDown, Globe, ImagePlus, LoaderCircle, Redo2, RotateCcw, Save, Send, Undo2 } from 'lucide-react'
 import type { ArticleDocument, DesktopApi, EditorBuffer, EditorRecovery, PreviewArticleResult, Result } from '../../../shared/contracts'
 import { Button, cn } from './ui'
-import { SourceEditor, type SourceEditorHandle } from './SourceEditor'
-import { MarkdownPreview } from './MarkdownPreview'
+import { MuyaEditor, type MuyaEditorHandle } from './MuyaEditor'
 import { Modal } from './Modal'
+import { imageUrlKey, markdownImages, replaceMarkdownImages } from '../../../shared/markdown-images'
 import '../editor/editor.css'
 
 export interface ArticleEditorHandle { save(): Promise<boolean>; discard(): Promise<boolean>; isDirty(): boolean; isBusy(): boolean }
@@ -18,13 +18,27 @@ async function unwrap<T>(request: Promise<Result<T>>): Promise<T> {
   if (!result.ok) throw Object.assign(new Error(result.error), { code: result.code })
   return result.data
 }
+
+/** Extract the raw frontmatter block (including delimiters) from a full source string. */
+function extractFrontmatter(source: string): string {
+  const opening = /^\uFEFF?---[\t ]*\r?\n/.exec(source)
+  if (!opening) return ''
+  const remaining = source.slice(opening[0].length)
+  const closing = /^(?:---|\.\.\.)[\t ]*(?:\r?\n|$)/m.exec(remaining)
+  if (!closing) return ''
+  return source.slice(0, opening[0].length + closing.index + closing[0].length)
+}
+
 const message = (error: unknown) => error instanceof Error ? error.message : '操作失败，请重试。'
 
-export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEditor({ document, projectPath, api, onSaved, onPublished, onBack, onDirtyChange, onRecoveryChange }, ref) {
-  const cm = useRef<SourceEditorHandle>(null)
-  const [source, setSource] = useState(document.source)
-  const sourceRef = useRef(source)
+export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEditor({
+  document, projectPath, api, onSaved, onPublished, onBack, onDirtyChange, onRecoveryChange
+}, ref) {
+  const muya = useRef<MuyaEditorHandle>(null)
+  const [body, setBody] = useState(document.body)
+  const bodyRef = useRef(body)
   const base = useRef(document)
+  const frontmatterRef = useRef(extractFrontmatter(document.source))
   const baseRevision = useRef(document.revision)
   const [dirty, setDirty] = useState(false)
   const dirtyRef = useRef(false)
@@ -32,8 +46,9 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
   const workingRef = useRef(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const [mode, setMode] = useState<'source' | 'preview' | 'split'>('source')
-  const [cursor, setCursor] = useState({ line: 1, column: 1 })
+  const [imageProgress, setImageProgress] = useState('')
+  const [stoppingImages, setStoppingImages] = useState(false)
+  const stopImages = useRef(false)
   const [recovery, setRecovery] = useState<EditorRecovery | null>(null)
   const [loadingRecovery, setLoadingRecovery] = useState(true)
   const [reloadPrompt, setReloadPrompt] = useState(false)
@@ -44,13 +59,11 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
   const [siteUnresolved, setSiteUnresolved] = useState<PreviewArticleResult | null>(null)
   const externalSessionRef = useRef(false)
   const setExternal = (value: boolean) => { externalSessionRef.current = value; setExternalSession(value) }
-  const [ratio, setRatio] = useState(50)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pending = useRef<Promise<unknown>>(Promise.resolve())
-  const suppressCheckpoint = useRef(false)
   const mounted = useRef(true)
   const target = { projectPath, relativePath: document.article.relativePath }
-  const input = (): EditorBuffer => ({ ...target, source: sourceRef.current, baseRevision: baseRevision.current })
+  const input = (): EditorBuffer => ({ ...target, source: frontmatterRef.current + bodyRef.current, baseRevision: baseRevision.current })
   const stopTimer = () => { if (timer.current) clearTimeout(timer.current); timer.current = null }
   const reportDirty = (value: boolean) => { dirtyRef.current = value; setDirty(value); onDirtyChange(value) }
 
@@ -63,24 +76,21 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
   }, [])
 
   const change = (next: string) => {
-    if (externalSessionRef.current && !suppressCheckpoint.current) return
-    sourceRef.current = next
-    setSource(next)
-    const changed = next !== base.current.source
+    if (externalSessionRef.current) return
+    bodyRef.current = next
+    setBody(next)
+    const changed = next !== base.current.body
     reportDirty(changed)
-    if (suppressCheckpoint.current) return
     setNotice('')
     stopTimer()
     timer.current = setTimeout(() => {
       pending.current = (changed ? unwrap(api.checkpointEditor(input())) : unwrap(api.clearEditorRecovery(target))).then(() => {
         if (mounted.current) setNotice(current => current.startsWith('已') ? current : changed ? '恢复记录已更新，文章尚未保存' : '与磁盘内容一致'); if (mounted.current) onRecoveryChange()
-      }).catch(cause => { if (mounted.current) setError(`恢复记录写入失败：${message(cause)}`) })
+      }).catch(cause => { if (mounted.current) setError(`恢复记录写入失败:${message(cause)}`) })
     }, 600)
   }
   const replace = (next: string) => {
-    suppressCheckpoint.current = true
-    cm.current?.replace(next)
-    suppressCheckpoint.current = false
+    muya.current?.replace(next)
   }
   const save = async (): Promise<boolean> => {
     if (workingRef.current || loadingRecovery || recovery || externalSessionRef.current) return false
@@ -89,7 +99,8 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
     try {
       await pending.current
       const result = await unwrap(api.saveArticle(input()))
-      base.current = result.document; baseRevision.current = result.document.revision
+      base.current = result.document; frontmatterRef.current = extractFrontmatter(result.document.source)
+      baseRevision.current = result.document.revision
       reportDirty(false)
       setNotice(result.recoveryWarning ?? '已保存到本地文件')
       onSaved(result.document); onRecoveryChange()
@@ -104,7 +115,7 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
       await pending.current
       await unwrap(api.clearEditorRecovery(target))
       baseRevision.current = base.current.revision
-      replace(base.current.source); reportDirty(false)
+      replace(base.current.body); reportDirty(false)
       setRecovery(null); setError(''); onRecoveryChange()
       return true
     } catch (cause) { setError(message(cause)); return false }
@@ -119,8 +130,8 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
       const hadEdits = dirtyRef.current
       if (hadEdits) await unwrap(api.checkpointEditor(input()))
       const next = await unwrap(api.readArticle(target.relativePath))
-      base.current = next; baseRevision.current = next.revision
-      replace(next.source); reportDirty(false); onSaved(next)
+      base.current = next; frontmatterRef.current = extractFrontmatter(next.source); baseRevision.current = next.revision
+      replace(next.body); reportDirty(false); onSaved(next)
       setNotice(hadEdits ? '已加载磁盘版本。之前的编辑保留在「恢复记录」中。' : '已加载磁盘版本。')
       setRecovery(null); setReloadPrompt(false); onRecoveryChange()
       return true
@@ -130,8 +141,8 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
   const exportCopy = async () => {
     workingRef.current = true; setWorking(true)
     try {
-      const destination = await unwrap(api.exportEditorCopy({ source: sourceRef.current, suggestedName: `副本-${target.relativePath.split('/').at(-1)}` }))
-      if (destination) setNotice(`副本已写入：${destination}。原文章尚未保存。`)
+      const destination = await unwrap(api.exportEditorCopy({ source: frontmatterRef.current + bodyRef.current, suggestedName: `副本-${target.relativePath.split('/').at(-1)}` }))
+      if (destination) setNotice('副本已写入:' + destination + '。原文章尚未保存。')
     } catch (cause) { setError(message(cause)) }
     finally { workingRef.current = false; setWorking(false) }
   }
@@ -151,7 +162,7 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
     try {
       const status = await unwrap(api.checkExternalEditor())
       if (status.associations[document.article.extension] !== 'ready') {
-        setError(`尚未为 ${document.article.extension} 设置默认打开方式。请在 Windows 的默认应用中选择程序后再试。`)
+        setError('no default for ' + document.article.extension)
         return
       }
       if (dirtyRef.current) { setExternalPrompt('dirty'); return }
@@ -238,11 +249,50 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
   }
   const restoreRecovery = () => {
     if (!recovery) return
-    baseRevision.current = recovery.baseRevision
-    replace(recovery.source); setRecovery(null)
+    baseRevision.current = base.current.revision
+    const recoveredBody = recovery.source.startsWith(frontmatterRef.current) ? recovery.source.slice(frontmatterRef.current.length) : recovery.source
+    replace(recoveredBody); setRecovery(null)
     setNotice('已恢复未保存内容，请检查后保存。')
   }
   const imageBlocked = () => workingRef.current || loadingRecovery || !!recovery || externalSessionRef.current || document.article.kind === 'ai-daily'
+  const pasteMarkdown = (text: string): boolean => {
+    if (imageBlocked() || text.length > 2 * 1024 * 1024) return false
+    const images = markdownImages(text)
+    if (!images.length) return false
+    const applied = muya.current?.insert(text)
+    if (!applied) return true
+    workingRef.current = true; setWorking(true); setError(''); setNotice('')
+    stopImages.current = false; setStoppingImages(false)
+    const urls = [...new Set(images.map(image => imageUrlKey(image.url)))]
+    const destinations = new Map<string, string>()
+    void (async () => {
+      const failures: string[] = []
+      let done = 0, skipped = 0, attempted = 0
+      try {
+        for (const [index, url] of urls.slice(0, 20).entries()) {
+          if (stopImages.current || !mounted.current) break
+          attempted++
+          setImageProgress('progress ' + index + '/' + Math.min(urls.length, 20))
+          try {
+            const result = await unwrap(api.importRemoteImage({ ...target, url }))
+            if (!mounted.current) break
+            if (result.skipped) { skipped++; continue }
+            destinations.set(url, result.destination)
+            done++
+          } catch (cause) { failures.push('item ' + (index + 1) + ': ' + message(cause)) }
+        }
+        if (!mounted.current) return
+        setNotice('图片处理完成:' + done + ' 张已转换为 WebP 并存储，' + skipped + ' 张已在图床；' + (urls.length - done - skipped) + ' 张保留原链接。文章尚未保存。')
+        if (urls.length > 20) failures.push('每次最多处理 20 个不同链接，超出的图片保留原链接，可单独复制粘贴处理。')
+        if (stopImages.current && attempted < urls.length) failures.push('已停止后续图片处理，未处理的图片保留原链接。')
+        if (failures.length) setError(failures.join(' '))
+      } finally {
+        workingRef.current = false
+        if (mounted.current) { setWorking(false); setImageProgress(''); setStoppingImages(false) }
+      }
+    })()
+    return true
+  }
   const insertImages = async (files: File[]) => {
     if (imageBlocked()) { if (document.article.kind === 'ai-daily') setError('图片只导入到正文或草稿文章旁边。'); return }
     workingRef.current = true; setWorking(true); setError('')
@@ -252,7 +302,7 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
         const bytes = new Uint8Array(await file.arrayBuffer())
         const result = await unwrap(api.importImage({ ...target, fileName: file.name || 'image.png', alt: file.name.replace(/\.[^.]+$/, '') || '图片', bytes }))
         remote = result.storage === 'remote'
-        cm.current?.insert(`${result.markdown}\n`)
+        muya.current?.insert(`${result.markdown}\n`)
       }
       setNotice(remote ? '已上传并插入公开链接，没有保存本地副本。' : '已保存到文章同名图片目录，并插入相对引用。')
     } catch (cause) { setError(message(cause)) }
@@ -264,26 +314,25 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
     try {
       const result = await unwrap(api.chooseArticleImage(target))
       if (!result) return
-      cm.current?.insert(`${result.markdown}\n`)
+      muya.current?.insert(`${result.markdown}\n`)
       setNotice(result.storage === 'remote' ? '已上传并插入公开链接，没有保存本地副本。' : '已保存到文章同名图片目录，并插入相对引用。')
     } catch (cause) { setError(message(cause)) }
     finally { workingRef.current = false; setWorking(false) }
   }
 
-  return <section className="article-editor" aria-label="文章编辑工作区" onKeyDownCapture={event => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); event.stopPropagation(); if (!externalSessionRef.current) void save() } }}>
+  return <section className="article-editor" aria-label="文章编辑工作区">
     <div className="editor-heading"><Button size="small" variant="ghost" onClick={onBack} disabled={working}><ArrowLeft size={16} />返回列表</Button><div className="editor-heading-title"><strong>{base.current.article.title}</strong><span>{target.relativePath}</span></div><span className={cn('editor-save-state', dirty && 'is-dirty')}>{externalSession ? '外部编辑中' : dirty ? '未保存' : '已保存'}</span>{document.article.kind === 'draft' && <Button size="small" disabled={working || loadingRecovery || !!recovery || externalSession} onClick={() => { if (dirtyRef.current) setPublishPrompt(true); else void runPublish() }}><Send size={15} />发布到正文</Button>}<Button variant="primary" size="small" disabled={!dirty || working || loadingRecovery || !!recovery || externalSession} onClick={() => void save()}>{working ? <LoaderCircle size={15} className="spin" /> : <Save size={15} />}保存</Button></div>
     {error && <div className="editor-error" role="alert">{error}</div>}
+    {imageProgress && <div className="recovery-prompt" role="status"><span>{imageProgress}</span><Button size="small" disabled={stoppingImages} onClick={() => { stopImages.current = true; setStoppingImages(true) }}>{stoppingImages ? '当前图片结束后停止...' : '停止后续图片'}</Button></div>}
     {externalSession && <section className="external-editor-guide" aria-label="正在使用外部编辑器"><ExternalLink size={52} strokeWidth={1.25} aria-hidden="true" /><h2>正在使用外部编辑器</h2><p>文件已使用系统默认程序打开，您可以在外部编辑器中进行编辑。编辑完成后，请点击下方按钮重新加载内容。</p><Button disabled={working} onClick={() => void finishExternal()}>{working ? <LoaderCircle size={16} className="spin" /> : <Download size={16} />}重新加载</Button></section>}
     <div className="editor-workspace" hidden={externalSession || undefined}>
-    <div className="editor-toolbar"><div className="editor-modes" role="tablist" aria-label="编辑器视图">{([{ value: 'source', label: '源码', icon: Code2 }, { value: 'preview', label: '预览', icon: Eye }, { value: 'split', label: '左右分栏', icon: Columns2 }] as const).map(({ value, label, icon: Icon }) => <button key={value} role="tab" aria-selected={mode === value} onClick={() => setMode(value)}><Icon size={14} />{label}</button>)}</div><div className="editor-tools"><Button size="icon" variant="ghost" title="撤销" aria-label="撤销" disabled={working || !!recovery || loadingRecovery} onClick={() => cm.current?.undo()}><Undo2 size={15} /></Button><Button size="icon" variant="ghost" title="重做" aria-label="重做" disabled={working || !!recovery || loadingRecovery} onClick={() => cm.current?.redo()}><Redo2 size={15} /></Button><Button size="icon" variant="ghost" title="查找与替换" aria-label="查找与替换" onClick={() => { setMode(mode === 'preview' ? 'source' : mode); cm.current?.find() }}><Search size={15} /></Button><Button size="small" variant="ghost" title={document.article.kind === 'ai-daily' ? '图片只导入到正文或草稿' : '选择图片。未启用 S3/R2 时保存到文章同名目录'} aria-label="插入图片" disabled={working || loadingRecovery || !!recovery || externalSession || document.article.kind === 'ai-daily'} onClick={() => void chooseImage()}><ImagePlus size={15} />插入图片</Button><Button size="small" variant="ghost" title="用系统默认程序打开磁盘上的当前文章" aria-label="用外部编辑器打开" disabled={working || loadingRecovery || !!recovery} onClick={() => void requestExternal()}><ExternalLink size={15} />外部编辑器</Button><Button size="small" variant="ghost" title="在 Astro 本地站点中打开当前文章。这不是 Markdown 基础预览。" aria-label="在站点中预览" disabled={working || loadingRecovery || !!recovery || externalSession} onClick={() => void requestSitePreview()}><Globe size={15} />站点预览</Button><Button size="icon" variant="ghost" title="重新加载磁盘版本" aria-label="重新加载磁盘版本" disabled={working} onClick={() => dirty ? setReloadPrompt(true) : void reload()}><RotateCcw size={15} /></Button><Button size="icon" variant="ghost" title="另存编辑副本" aria-label="另存编辑副本" disabled={working} onClick={() => void exportCopy()}><FileDown size={15} /></Button></div></div>
+    <div className="editor-toolbar"><div className="editor-tools"><Button size="icon" variant="ghost" title="撤销" aria-label="撤销" disabled={working || !!recovery || loadingRecovery} onClick={() => muya.current?.undo()}><Undo2 size={15} /></Button><Button size="icon" variant="ghost" title="重做" aria-label="重做" disabled={working || !!recovery || loadingRecovery} onClick={() => muya.current?.redo()}><Redo2 size={15} /></Button><Button size="small" variant="ghost" title={document.article.kind === 'ai-daily' ? '图片只导入到正文或草稿' : '选择图片。未启用 S3/R2 时保存到文章同名目录'} aria-label="插入图片" disabled={working || loadingRecovery || !!recovery || externalSession || document.article.kind === 'ai-daily'} onClick={() => void chooseImage()}><ImagePlus size={15} />插入图片</Button><Button size="small" variant="ghost" title="用系统默认程序打开磁盘上的当前文章" aria-label="用外部编辑器打开" disabled={working || loadingRecovery || !!recovery} onClick={() => void requestExternal()}><ExternalLink size={15} />外部编辑器</Button><Button size="small" variant="ghost" title="在 Astro 本地站点中打开当前文章。这不是 Markdown 基础预览。" aria-label="在站点中预览" disabled={working || loadingRecovery || !!recovery || externalSession} onClick={() => void requestSitePreview()}><Globe size={15} />站点预览</Button><Button size="icon" variant="ghost" title="重新加载磁盘版本" aria-label="重新加载磁盘版本" disabled={working} onClick={() => dirty ? setReloadPrompt(true) : void reload()}><RotateCcw size={15} /></Button><Button size="icon" variant="ghost" title="另存编辑副本" aria-label="另存编辑副本" disabled={working} onClick={() => void exportCopy()}><FileDown size={15} /></Button></div></div>
     {recovery && <div className="recovery-prompt"><span>发现 {new Date(recovery.updatedAt).toLocaleString('zh-CN')} 的未保存内容。{recovery.baseRevision !== base.current.revision && '磁盘版本已变化，恢复后保存会先检查冲突。'}</span><Button size="small" onClick={restoreRecovery}>恢复到编辑器</Button><Button size="small" variant="ghost" onClick={() => void discard()}>放弃恢复记录</Button></div>}
-    <div className={cn('editor-panes', `editor-mode-${mode}`)}>
-      <div className="editor-source-pane" style={{ width: mode === 'split' ? `${ratio}%` : undefined }}><SourceEditor ref={cm} initialSource={document.source} disabled={working || loadingRecovery || !!recovery || externalSession} onChange={change} onSave={() => void save()} onCursor={(line, column) => setCursor({ line, column })} onImages={files => void insertImages(files)} /></div>
-      {mode === 'split' && <div className="editor-divider" role="separator" aria-label="调整编辑器分栏" aria-orientation="vertical" aria-valuemin={25} aria-valuemax={75} aria-valuenow={ratio} tabIndex={0} onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); setRatio(value => Math.max(25, Math.min(75, value + (event.key === 'ArrowLeft' ? -5 : 5)))) } }} onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId) }} onPointerMove={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) { const rect = event.currentTarget.parentElement!.getBoundingClientRect(); setRatio(Math.max(25, Math.min(75, (event.clientX - rect.left) / rect.width * 100))) } }} onPointerUp={event => event.currentTarget.releasePointerCapture(event.pointerId)} />}
-      <div className="editor-preview-pane"><MarkdownPreview source={source} mdx={document.article.extension === '.mdx'} api={api} projectPath={projectPath} relativePath={document.article.relativePath} /></div>
+    <div className="editor-panes">
+      <div className="editor-source-pane"><MuyaEditor ref={muya} initialBody={document.body} disabled={working || loadingRecovery || !!recovery || externalSession} onChange={change} onSave={() => void save()} onImages={files => void insertImages(files)} onMarkdownPaste={pasteMarkdown} /></div>
     </div>
     </div>
-    <div className="editor-footer"><span role="status">{loadingRecovery ? '检查恢复记录…' : externalSession ? '编辑区已暂停。请在外部程序中修改，然后重新加载。' : notice || (dirty ? '编辑中，Ctrl+S 保存' : '本地文件 · Ctrl+S 保存')}</span><span>行 {cursor.line}，列 {cursor.column}</span></div>
+    <div className="editor-footer"><span role="status">{loadingRecovery ? '检查恢复记录...' : externalSession ? '编辑区已暂停。请在外部程序中修改，然后重新加载。' : notice || (dirty ? '编辑中，Ctrl+S 保存' : '本地文件 · Ctrl+S 保存')}</span><span>Muya Markdown 编辑器</span></div>
     {reloadPrompt && <Modal title="重新加载磁盘版本" onCancel={() => { if (!working) setReloadPrompt(false) }}><p>当前编辑会先写入恢复记录，再加载磁盘版本。之后可从恢复记录取回或导出副本。</p><div className="dialog-actions"><Button disabled={working} onClick={() => setReloadPrompt(false)}>取消</Button><Button disabled={working} variant="primary" onClick={() => void reload()}>保留编辑并加载</Button></div></Modal>}
     {externalPrompt === 'dirty' && <Modal title="用外部编辑器打开" onCancel={() => { if (!working) setExternalPrompt(null) }}><p>系统默认程序打开的是磁盘上的文章。打开后编辑区会暂停，直到重新加载。请先保存或放弃编辑区中的修改。取消会保留编辑区，并且不会打开外部程序。</p><div className="dialog-actions"><Button disabled={working} onClick={() => setExternalPrompt(null)}>取消</Button><Button disabled={working} onClick={() => void discardAndOpen()}>放弃修改并打开</Button><Button disabled={working} variant="primary" onClick={() => void saveAndOpen()}>保存并打开</Button></div></Modal>}
     {externalPrompt === 'stale' && <Modal title="磁盘内容已变化" onCancel={() => { if (!working) setExternalPrompt(null) }}><p>磁盘上的文章与编辑区打开时的版本不同。重新加载会替换编辑区。取消则保持编辑区，并且不打开外部编辑器。</p><div className="dialog-actions"><Button disabled={working} onClick={() => setExternalPrompt(null)}>取消</Button><Button disabled={working} variant="primary" onClick={() => void reloadAndOpen()}>重新加载并打开</Button></div></Modal>}

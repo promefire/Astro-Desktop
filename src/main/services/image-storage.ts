@@ -90,6 +90,7 @@ export async function putObject(storage: ImageStorage, key: string, body: Buffer
   try {
     response = await fetchImpl(new URL(canonicalUri, endpoint), {
       method: 'PUT',
+      signal: AbortSignal.timeout(30_000),
       headers: { 'content-type': contentType, 'if-none-match': '*', 'x-amz-content-sha256': payloadHash, 'x-amz-date': amzDate, authorization },
       body: new Uint8Array(body),
     })

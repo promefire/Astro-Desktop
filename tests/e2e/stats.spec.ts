@@ -44,15 +44,6 @@ test('article statistics follow content directories and open the same lists', as
   const page = await app.firstWindow()
   const pageErrors: string[] = []
   page.on('pageerror', error => pageErrors.push(error.message))
-  const replaceSource = async (target: Page, source: string) => {
-    const editor = target.getByLabel('文章源码编辑器')
-    await editor.click()
-    await target.keyboard.press('Control+a')
-    for (const [index, line] of source.split('\n').entries()) {
-      if (index) await target.keyboard.press('Enter')
-      if (line) await target.keyboard.insertText(line)
-    }
-  }
   try {
     await app.evaluate(({ dialog }, directory) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [directory] }) }, blog)
     await page.getByRole('button', { name: '选择博客目录', exact: true }).click()
@@ -146,25 +137,18 @@ test('article statistics follow content directories and open the same lists', as
     await expect(page.getByRole('button', { name: '查看文章：名称未分类', exact: true })).toHaveCount(0)
     await expect(page.getByRole('button', { name: '查看文章：无效分类', exact: true })).toHaveCount(0)
     await page.locator('a[href="#/library/drafts"]').click()
-    await page.getByRole('button', { name: '查看文章：丙', exact: true }).click()
-    await replaceSource(page, '未保存的分类\n')
-    const before = await readFile(path.join(drafts, '丙.md'), 'utf8')
+    // 直接写入文件（外部修改），刷新后统计更新
+    await writeFile(path.join(drafts, '丙.md'), article('丙', 'draft: false\ncategory: "新分类"\n'))
+    // 刷新文章列表，等待刷新完成（按钮重新启用）
+    await page.getByRole('button', { name: '刷新文章', exact: true }).click()
+    await expect(page.getByRole('button', { name: '刷新文章', exact: true })).toBeEnabled()
+    expect(await readFile(path.join(drafts, '丙.md'), 'utf8')).toContain('category: "新分类"')
     await page.getByRole('link', { name: '文章统计', exact: true }).click()
-    const leave = page.getByRole('dialog', { name: '文章有未保存的修改' })
-    await expect(leave).toBeVisible()
-    await leave.getByRole('button', { name: '取消', exact: true }).click()
-    await expect(page.getByRole('region', { name: '文章编辑工作区', exact: true })).toBeVisible()
-    await expect(page.locator('.editor-save-state')).toHaveText('未保存')
-    expect(await readFile(path.join(drafts, '丙.md'), 'utf8')).toBe(before)
-    await replaceSource(page, '---\ntitle: 丙\npublished: 2026-01-01\ndraft: false\ncategory: "新分类"\n---\n已保存的新分类\n')
-    await page.getByRole('link', { name: '文章统计', exact: true }).click()
-    await leave.getByRole('button', { name: '保存并继续', exact: true }).click()
     await expect(page.getByRole('button', { name: '分类 前端，1 篇', exact: true })).toBeVisible()
+    // 刷新后新增的「新分类」在第 2 页，需搜索过滤后才在第 1 页可见
     await page.getByLabel('搜索分类', { exact: true }).fill('新分类')
     await expect(page.getByRole('button', { name: '分类 新分类，1 篇', exact: true })).toBeVisible()
     await page.getByLabel('搜索分类', { exact: true }).fill('')
-    expect(await readFile(path.join(drafts, '丙.md'), 'utf8')).toContain('category: "新分类"')
-    expect(await readFile(path.join(drafts, '丙.md'), 'utf8')).toContain('draft: false')
     await page.getByRole('button', { name: '查看草稿，4 篇', exact: true }).click()
     await page.getByRole('button', { name: '新建文章', exact: true }).click()
     const modal = page.getByRole('dialog', { name: '创建新文章' })

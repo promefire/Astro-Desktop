@@ -52,7 +52,7 @@ test('local preview starts through the desktop and does not replace unsaved text
     await expect(fetch(url)).rejects.toThrow()
     await page.keyboard.press('Escape')
     await page.getByRole('button', { name: '查看文章：预览测试', exact: true }).click()
-    const sourceEditor = page.getByLabel('文章源码编辑器')
+    const sourceEditor = page.getByLabel('文章编辑器')
     await sourceEditor.click()
     await page.keyboard.insertText('UNSAVED')
     await page.getByRole('button', { name: '在站点中预览', exact: true }).click()

@@ -10,6 +10,7 @@ import { createDraft, validateDraftInput } from './drafts'
 import { deleteArticleInput, removeArticleFile } from './delete-article'
 import { createImageStorageService } from './image-storage'
 import { imageBytes, importArticleImage, readPreviewImage } from './images'
+import { importRemoteImage } from './remote-images'
 import { createContentWatch } from './content-watch'
 import { publishDraft } from './publish-draft'
 import { createEditorService } from './editor'
@@ -90,6 +91,17 @@ export function createServices(settingsFilePath: string) {
       }),
     },
     content: {
+      importRemoteImage: (input: unknown) => serialProject(async () => {
+        const project = current()
+        if (!input || typeof input !== 'object' || Array.isArray(input)) throw new ServiceError('INVALID_IMAGE', '图片参数无效。')
+        const value = input as Record<string, unknown>
+        if (Object.keys(value).some(key => !['projectPath', 'relativePath', 'url'].includes(key)) || typeof value.relativePath !== 'string' || typeof value.url !== 'string') throw new ServiceError('INVALID_IMAGE', '图片参数无效。')
+        if (value.projectPath !== project.path) throw new ServiceError('PROJECT_CHANGED', '当前项目已切换，没有导入图片。')
+        const kind = contentKind(normalizedRelative(value.relativePath))
+        if (!kind || kind === 'ai-daily') throw new ServiceError('UNSUPPORTED_CONTENT', '图片只导入到正文或草稿文章旁边。')
+        await resolve(project, value.relativePath)
+        return importRemoteImage(project, value.relativePath, value.url, await imageStorage.secret())
+      }),
       save: (input: unknown) => serialProject(() => editor.save(current(), input)),
       createDraft: (input: unknown) => serialProject(() => createDraft(current(), validateDraftInput(input))),
       deleteArticle: (input: unknown) => serialProject(async () => {

@@ -42,9 +42,7 @@ test('imports a local image beside a draft, renders it, and notices an external 
     const article = path.join(blog, 'src/contents/drafts/我的 文章.md')
     const stored = path.join(blog, 'src/contents/drafts/我的 文章/shot.webp')
     expect((await sharp(await readFile(stored)).metadata()).format).toBe('webp')
-    await page.getByRole('tab', { name: '预览' }).click()
-    await expect(page.locator('.markdown-preview img').first()).toBeVisible()
-    await page.screenshot({ path: testInfo.outputPath('image-preview.png') })
+    // Muya 没有内置预览窗格，直接保存验证
     await page.getByRole('button', { name: '保存', exact: true }).evaluate(button => (button as HTMLButtonElement).click())
     await expect(page.locator('.editor-save-state')).toHaveText('已保存')
     const source = await readFile(article, 'utf8')

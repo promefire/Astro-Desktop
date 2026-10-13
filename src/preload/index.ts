@@ -16,6 +16,7 @@ const api: DesktopApi = {
   createDraft: (input) => ipcRenderer.invoke(IPC.createDraft, input),
   deleteArticle: (input) => ipcRenderer.invoke(IPC.deleteArticle, input),
   importImage: (input) => ipcRenderer.invoke(IPC.importImage, input),
+  importRemoteImage: (input) => ipcRenderer.invoke(IPC.importRemoteImage, input),
   chooseArticleImage: (input) => ipcRenderer.invoke(IPC.chooseArticleImage, input),
   readPreviewImage: (input) => ipcRenderer.invoke(IPC.readPreviewImage, input),
   publishDraft: (input) => ipcRenderer.invoke(IPC.publishDraft, input),

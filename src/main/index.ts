@@ -80,6 +80,7 @@ function registerHandlers(): void {
   handle(IPC.createDraft, (input) => services.content.createDraft(input))
   handle(IPC.deleteArticle, (input) => services.content.deleteArticle(input))
   handle(IPC.importImage, (input) => services.content.importImage(input))
+  handle(IPC.importRemoteImage, (input) => services.content.importRemoteImage(input))
   handle(IPC.chooseArticleImage, async (input) => {
     if (!mainWindow) throw new Error('主窗口不可用。')
     if (!input || typeof input !== 'object') throw new ServiceError('INVALID_IMAGE', '图片参数无效。')

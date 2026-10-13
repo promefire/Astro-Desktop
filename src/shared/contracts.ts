@@ -34,6 +34,8 @@ export interface ImageStoragePublic { enabled: boolean; endpoint: string; region
 export interface ImageStorageUpdate { enabled: boolean; endpoint: string; region: string; bucket: string; publicBaseUrl: string; accessKeyId: string; secretAccessKey: string }
 export interface ImportImageInput extends ArticleTarget { fileName: string; alt: string; bytes: Uint8Array }
 export interface ImportImageResult { markdown: string; storage: 'local' | 'remote' }
+export interface ImportRemoteImageInput extends ArticleTarget { url: string }
+export interface ImportRemoteImageResult { destination: string; storage: 'local' | 'remote'; skipped: boolean }
 export interface PreviewImageInput extends ArticleTarget { destination: string }
 export interface PublishDraftInput extends ArticleTarget { baseRevision: string }
 export interface PublishDraftResult { document: ArticleDocument; imageAction: 'moved' | 'copied' | 'none'; message: string }
@@ -55,6 +57,7 @@ export interface DesktopApi {
   createDraft(input: CreateDraftInput): Promise<Result<ArticleDocument>>;
   deleteArticle(input: ArticleTarget): Promise<Result<{ relativePath: string }>>;
   importImage(input: ImportImageInput): Promise<Result<ImportImageResult>>;
+  importRemoteImage(input: ImportRemoteImageInput): Promise<Result<ImportRemoteImageResult>>;
   chooseArticleImage(input: ArticleTarget): Promise<Result<ImportImageResult | null>>;
   readPreviewImage(input: PreviewImageInput): Promise<Result<string | null>>;
   publishDraft(input: PublishDraftInput): Promise<Result<PublishDraftResult>>;
@@ -91,6 +94,7 @@ export const IPC = {
   revealArticle: 'content:reveal', openProjectFolder: 'project:reveal',
   createDraft: 'content:create-draft', deleteArticle: 'content:delete',
   importImage: 'content:import-image', chooseArticleImage: 'content:choose-image', readPreviewImage: 'content:preview-image', publishDraft: 'content:publish-draft',
+  importRemoteImage: 'content:import-remote-image',
   contentChanged: 'content:changed',
   getImageStorage: 'image-storage:get', setImageStorage: 'image-storage:set',
   saveArticle: 'content:save', checkpointEditor: 'editor:checkpoint', getEditorRecovery: 'editor:recovery',

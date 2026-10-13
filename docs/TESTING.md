@@ -1,5 +1,27 @@
 # 测试记录
 
+## 2026-10-13：Muya 编辑器替换 CodeMirror（完整回归通过）
+
+本次结果：TypeScript strict 通过；**86 / 86** 个单元测试通过（15 个测试文件，1 个真实博客专项因未设置 `ASTRO_BLOG_TEST_PATH` 跳过）；Main / Preload / Renderer 构建通过；完整 Electron E2E **10 / 10** 通过（删除、桌面、开发、草稿、编辑器、外部编辑器、图片、预览、发布、统计）。没有修改 `F:\blog\Astro_Blog`。
+
+命令：`npm run typecheck`、`$env:ASTRO_BLOG_TEST_PATH = 'F:\blog\Astro_Blog'; npm test`、`npm run build`、`npx playwright test tests/e2e/`。
+
+新增 `src/renderer/src/components/MuyaEditor.tsx`：Muya React 适配层。创建/销毁、`json-change` 事件获取正文（source=user）、撤销/重做、只读、图片粘贴（捕获阶段拦截 `paste`，避免与 Muya 默认粘贴重复）、Ctrl+S。删除 `SourceEditor.tsx`、`MarkdownPreview.tsx`，移除 CodeMirror 6、@lezer、react-markdown、remark-gfm 依赖。
+
+重写 `ArticleEditor.tsx`：`extractFrontmatter` 保留原始 frontmatter，保存时与正文拼接。移除模式切换（源码/预览/左右分栏）、分隔条、预览窗格。状态改为正文（body）+ frontmatterRef。工具栏简化为撤销/重做、插入图片、外部编辑器、站点预览、重新加载、导出副本。
+
+简化 `source-state.ts` 为 `markdownBody()`（从源提取正文）。更新 `editor.css` 适配 Muya 布局。
+
+更新测试：
+
+- `tests/source-state.test.ts`：保留 `markdownBody`（混合换行提取正文，3 项），移除 CodeMirror 撤销/重做坐标测试。
+- `tests/e2e/editor.spec.ts`：适配 Muya DOM（`.muya-editor-host`、`muya.getMarkdown`、`muya.undo`），移除模式切换、分隔条、预览、查找替换场景。
+- `tests/e2e/paste-images.spec.ts`：适配 Muya 图片粘贴（捕获阶段拦截，不经过 Muya 默认粘贴）。
+
+回归验证：完整 Electron E2E **10 / 10** 通过。原有保存、恢复记录、外部编辑器、新建草稿、文章图片、列表删除、统计、本地预览、发布、安全保存等 E2E 流程在 Muya 编辑器下全部通过。
+
+Muya 会规范化 Markdown 正文（空格、空行等可能改变），保存后与手动逐字节编辑源码不完全一致。Frontmatter 原文保留。MDX 可打开但不可通过 Muya 安全保存。详细见 [EDITOR.md](EDITOR.md)。
+
 ## 2026-10-13：自动 WebP 压缩
 
 图片处理、图片存储与发布回归 18/18 通过；Electron 图片选择、真实 WebP 落盘、预览及保存端到端测试 1/1 通过；npm run build（包含 strict 类型检查）通过。测试真实 WebP 解码、体积压缩、透明度、方向、动画、无效输入及 S3 请求 MIME。云端请求使用注入 fetch，未访问真实 R2。

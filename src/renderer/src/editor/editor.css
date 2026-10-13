@@ -8,9 +8,7 @@
 .editor-save-state { font-size: 11px; white-space: nowrap; color: var(--muted); }
 .editor-save-state.is-dirty { color: var(--warning-text); }
 .editor-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
-.editor-modes, .editor-tools { display: flex; align-items: center; gap: 3px; }
-.editor-modes button { display: flex; align-items: center; gap: 6px; padding: 7px 10px; font-size: 11px; border: 0; border-radius: 5px; background: transparent; color: var(--secondary); }
-.editor-modes button[aria-selected="true"] { color: var(--accent-text); background: var(--accent-soft); }
+.editor-tools { display: flex; align-items: center; gap: 3px; }
 .editor-workspace { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .editor-workspace[hidden] { display: none; }
 .external-editor-guide { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 48px 32px; }
@@ -19,34 +17,7 @@
 .external-editor-guide p { max-width: 440px; margin: 14px 0 0; color: var(--secondary); font-size: 13px; line-height: 1.85; }
 .external-editor-guide .button { margin-top: 22px; }
 .editor-panes { display: flex; flex: 1; min-height: 0; overflow: hidden; }
-.editor-source-pane, .editor-preview-pane { min-width: 0; width: 100%; height: 100%; }
-.editor-mode-source .editor-preview-pane, .editor-mode-preview .editor-source-pane { display: none; }
-.editor-mode-split .editor-preview-pane { width: 0; flex: 1; }
-.editor-divider { width: 5px; flex: 0 0 5px; background: var(--border); cursor: col-resize; touch-action: none; }
-.editor-divider:hover, .editor-divider:focus-visible { background: var(--accent); outline: none; }
-.code-editor-host, .code-editor-host .cm-editor { height: 100%; }
-.code-editor-host .cm-editor { font-size: 13px; color: var(--text); }
-.code-editor-host .cm-editor.cm-focused { outline: none; }
-.code-editor-host .cm-scroller { overflow: auto; font-family: "Cascadia Code", Consolas, "Microsoft YaHei UI", monospace; line-height: 1.85; }
-.code-editor-host .cm-content { padding: 16px 0; caret-color: var(--accent); }
-.code-editor-host .cm-line { padding: 0 16px 0 8px; }
-.code-editor-host .cm-gutters { background: var(--surface); color: var(--muted); border: 0; padding-left: 8px; }
-.code-editor-host .cm-activeLine, .code-editor-host .cm-activeLineGutter { background: var(--subtle); }
-.code-editor-host .cm-cursor { border-left-color: var(--accent); }
-.code-editor-host .cm-selectionBackground, .code-editor-host .cm-focused .cm-selectionBackground { background: var(--accent-soft); }
-.code-editor-host .cm-panels { background: var(--subtle); color: var(--text); border-color: var(--border); }
-.code-editor-host .cm-textfield, .code-editor-host .cm-button { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
-.markdown-preview { height: 100%; overflow: auto; padding: 20px 28px 40px; font-size: 14px; line-height: 1.9; overflow-wrap: anywhere; }
-.preview-note { font-size: 11px; color: var(--muted); padding-bottom: 14px; margin-bottom: 22px; border-bottom: 1px solid var(--border); line-height: 1.7; }
-.markdown-preview h1, .markdown-preview h2, .markdown-preview h3, .markdown-preview h4 { font-weight: 650; line-height: 1.45; margin: 1.4em 0 .65em; }
-.markdown-preview h1 { font-size: 26px; }.markdown-preview h2 { font-size: 21px; }.markdown-preview h3 { font-size: 17px; }
-.markdown-preview p { margin: .8em 0; }.markdown-preview ul, .markdown-preview ol { padding-left: 24px; margin: .8em 0; }.markdown-preview ul { list-style: disc; }.markdown-preview ol { list-style: decimal; }
-.markdown-preview blockquote { border-left: 3px solid var(--accent); color: var(--secondary); padding-left: 16px; margin: 18px 0; }
-.markdown-preview pre { background: var(--subtle); padding: 16px; border-radius: 6px; overflow: auto; font-size: 12px; }
-.markdown-preview :not(pre) > code { background: var(--subtle); padding: 2px 4px; border-radius: 3px; font-size: .9em; }
-.markdown-preview table { border-collapse: collapse; width: 100%; margin: 18px 0; }.markdown-preview th, .markdown-preview td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }.markdown-preview th { background: var(--subtle); }
-.preview-link { color: var(--accent-text); text-decoration: underline; }.preview-image { display: block; padding: 12px; border: 1px dashed var(--border); color: var(--muted); font-size: 12px; }
-.markdown-preview img { display: block; max-width: 100%; height: auto; margin: 12px 0; }
+.editor-source-pane { min-width: 0; width: 100%; height: 100%; }
 .editor-footer { min-height: 32px; display: flex; justify-content: space-between; gap: 12px; padding: 8px 16px; font-size: 10px; color: var(--muted); border-top: 1px solid var(--border); }
 .editor-footer > :last-child { white-space: nowrap; }.editor-footer > :first-child { overflow-wrap: anywhere; }
 .editor-error, .recovery-prompt { padding: 10px 16px; font-size: 12px; background: var(--warning-bg); color: var(--warning-text); line-height: 1.7; }
@@ -58,4 +29,14 @@
 .recovery-list button { text-align: left; border: 1px solid var(--border); border-radius: 5px; background: var(--subtle); padding: 10px; font-size: 12px; overflow-wrap: anywhere; }
 .recovery-list button[aria-pressed="true"] { border-color: var(--accent); }.recovery-list small { display: block; color: var(--muted); margin-top: 4px; }
 .recovery-source { width: 100%; height: 210px; padding: 12px; background: var(--subtle); border: 1px solid var(--border); color: var(--text); font: 12px/1.7 Consolas, monospace; resize: vertical; }
-@media (max-width: 1100px) { .editor-heading { padding: 12px; gap: 8px; }.editor-toolbar { padding: 8px; }.markdown-preview { padding: 16px; }.editor-save-state { display: none; } }
+
+/* Muya editor host */
+.muya-editor-host { height: 100%; width: 100%; overflow: hidden; }
+.muya-editor-host .ag-paragraph { max-width: 100%; }
+.muya-editor-host .ag-edit-area { height: 100% !important; }
+.muya-editor-host .ag-editor { height: 100% !important; }
+.muya-editor-host::-webkit-scrollbar { width: 8px; height: 8px; }
+.muya-editor-host::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.muya-editor-host .ag-notice { font-size: 12px; }
+
+@media (max-width: 1100px) { .editor-heading { padding: 12px; gap: 8px; }.editor-toolbar { padding: 8px; }.editor-save-state { display: none; } }

@@ -1,5 +1,19 @@
 # 开发记录
 
+## 2026-10-13：Muya 编辑器替换 CodeMirror
+
+- 移除 CodeMirror 6、@lezer、react-markdown、remark-gfm 依赖及其 UI（源码/预览/左右分栏、分栏拖动、CodeMirror 语法高亮、查找替换面板）
+- 集成 MarkText Muya 内核（@muyajs/core 0.2.0，MIT，https://github.com/marktext/marktext 的 packages/muya），作为唯一内置编辑模式
+- 新建 `src/renderer/src/components/MuyaEditor.tsx` 作为 React 适配层：创建/销毁 Muya 实例、监听 `json-change`（source=user）获取正文变化、撤销重做、只读、图片粘贴（捕获阶段拦截，避免与 Muya 默认粘贴重复）、Ctrl+S、主题
+- 重写 `ArticleEditor.tsx`：正文与 Frontmatter 分离（`extractFrontmatter` 提取原始 frontmatter，保存时拼回），移除模式切换和预览窗格
+- 删除 `SourceEditor.tsx`、`MarkdownPreview.tsx`，简化 `source-state.ts`（只保留 `markdownBody`）
+- 更新 `editor.css` 适配 Muya 布局
+- 更新 E2E 测试适配 Muya DOM 结构
+
+Muya 会规范化 Markdown 正文（空格、空行等可能改变），保存后与手动逐字节编辑源码不完全一致。Frontmatter 原文保留。MDX 可打开但不可通过 Muya 安全保存。详细见 [编辑器](EDITOR.md)。
+
+本轮结果见 [TESTING.md](TESTING.md)。
+
 ## 2026-10-13：自动 WebP 压缩
 
 新增主进程 sharp 转码：解码真实图片字节后以质量 80 输出 WebP，本地和 S3/R2 共用。保留尺寸、透明度和 GIF/WebP 动画，静态 JPEG 校正 EXIF 方向并去掉元数据。输入/输出上限 8 MB，总像素上限 4000 万，编码超时 20 秒；失败不插入伪链接，不修改原文件。新图片均为 .webp，已有图片不迁移。
