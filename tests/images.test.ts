@@ -6,7 +6,7 @@ import { createServices } from '../src/main/services'
 import { importArticleImage } from '../src/main/services/images'
 import { createContentWatch } from '../src/main/services/content-watch'
 import { localImageDestination, resolveMarkdownPath } from '../src/shared/image-path'
-import type { ImageStorage } from '../src/main/services/image-storage'
+import { objectKey, putObject, type ImageStorage } from '../src/main/services/image-storage'
 
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')
 let temporary: string
@@ -84,17 +84,23 @@ describe('article image directories', () => {
     const storage: ImageStorage = { enabled: true, endpoint: 'https://example.r2.cloudflarestorage.com', region: 'auto', bucket: 'blog-images', publicBaseUrl: 'https://images.example.com', accessKeyId: 'AKIAtestkey', secretAccessKey: 'secret-value-should-not-leak' }
     const current = await services.projects.getCurrent()
     if (!current) throw new Error('项目没有打开。')
+    let uploadedPath = ''
     const uploaded = await importArticleImage(current, created.article.relativePath, 'a.png', png, '远端', storage, async (url, init) => {
       const address = String(url)
       const headers = new Headers(init?.headers)
-      expect(address).toContain('/blog-images/astro-desktop/')
+      uploadedPath = new URL(address).pathname
+      expect(uploadedPath).toMatch(/^\/blog-images\/astro-desktop\/\d{8}_\d{6}_[a-z0-9]{6}\.png$/)
+      expect(headers.get('content-type')).toBe('image/png')
+      expect(Buffer.from(init?.body as Uint8Array)).toEqual(png)
+      expect(headers.get('if-none-match')).toBe('*')
       expect(address).not.toContain('secret-value-should-not-leak')
       expect(headers.get('authorization')).toContain('AKIAtestkey')
+      expect(headers.get('authorization')).toContain('SignedHeaders=content-type;host;if-none-match;x-amz-content-sha256;x-amz-date')
       expect(headers.get('authorization')).not.toContain('secret-value-should-not-leak')
       return new Response(null, { status: 200 })
     })
     expect(uploaded.storage).toBe('remote')
-    expect(uploaded.markdown).toMatch(/^!\[远端\]\(https:\/\/images\.example\.com\/astro-desktop\//)
+    expect(uploaded.markdown).toBe(`![远端](https://images.example.com${uploadedPath.slice('/blog-images'.length)})`)
     expect(await readdir(path.join(project, 'src/contents/drafts'))).toEqual(['远程图片.md'])
     await expect(importArticleImage(current, created.article.relativePath, 'a.png', png, '远端', storage, async () => { throw new Error('secret-value-should-not-leak down') })).rejects.toThrow(/没有保存本地副本/)
     try {
@@ -102,6 +108,26 @@ describe('article image directories', () => {
     } catch (error) {
       expect(error instanceof Error ? error.message : '').not.toContain('secret-value-should-not-leak')
     }
+  })
+
+  it('names remote images with local time and random suffixes, preserving image extensions', () => {
+    const instant = new Date(2026, 7, 12, 15, 18, 31)
+    expect(objectKey('原图.WEBP', instant)).toMatch(/^astro-desktop\/20260812_151831_[a-z0-9]{6}\.webp$/)
+    expect(objectKey('原图.jpg', new Date(2026, 0, 2, 3, 4, 5))).toMatch(/^astro-desktop\/20260102_030405_[a-z0-9]{6}\.jpg$/)
+    const keys = Array.from({ length: 20 }, () => objectKey('同名.png', instant))
+    expect(new Set(keys).size).toBe(keys.length)
+    expect(keys.every(key => /^astro-desktop\/20260812_151831_[a-z0-9]{6}\.png$/.test(key))).toBe(true)
+  })
+
+  it('reports a remote name collision without returning a link or retrying an overwrite', async () => {
+    const storage: ImageStorage = { enabled: true, endpoint: 'https://example.r2.cloudflarestorage.com', region: 'auto', bucket: 'blog-images', publicBaseUrl: 'https://images.example.com', accessKeyId: 'AKIAtestkey', secretAccessKey: 'test-secret' }
+    let requests = 0
+    await expect(putObject(storage, 'astro-desktop/20260812_151831_8tzhcf.png', png, 'image/png', async (_url, init) => {
+      requests++
+      expect(new Headers(init?.headers).get('if-none-match')).toBe('*')
+      return new Response(null, { status: 412 })
+    })).rejects.toMatchObject({ code: 'IMAGE_NAME_CONFLICT' })
+    expect(requests).toBe(1)
   })
 
   it('keeps the secret out of settings and out of the public storage view', async () => {

@@ -65,7 +65,7 @@ export async function importArticleImage(project: ProjectInfo, articlePath: stri
   if (!kind || kind === 'ai-daily') throw new ServiceError('UNSUPPORTED_CONTENT', '图片只导入到正文或草稿文章旁边。')
   const file = imageFileName(originalName)
   if (storage.enabled) {
-    const key = objectKey(project.path, relativePath, file.name)
+    const key = objectKey(file.name)
     const destination = await putObject(storage, key, bytes, file.contentType, fetchImpl)
     return { markdown: imageMarkdown(alt, destination), storage: 'remote' }
   }

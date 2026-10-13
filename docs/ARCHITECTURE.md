@@ -27,7 +27,7 @@ React Renderer 只调用 `window.astroDesktop`。Preload 使用 `contextBridge` 
 
 发布日期保留文档日期语义，不用 UTC 转换导致日期跨天。正文与草稿使用同一套文章字段，但 `kind` 来自目录：`src/contents/post`、`src/contents/drafts`、`src/contents/ai-daily`。Frontmatter 的 `draft` 只按原值保留，缺失时为未设置，无效时报告字段问题，不把文章改列入另一个目录。当前博客的 Astro 集合没有 drafts，本地预览因此不为草稿生成地址。`src/contents` 上的递归监听会在文件变化后重新扫描并只更新索引，暂停期间的事件丢弃；它不替换编辑区。文章统计是对这份索引的只读聚合，计算在 `src/shared/article-stats.ts`，不另建统计库，也不把未保存编辑区计入。切换项目时先清空索引，过期响应不能写回新项目。口径见 [STATS.md](STATS.md)。
 
-本地图片目录与文章文件并列，名称是去掉 `.md` / `.mdx` 的文件名。新建不创建这个目录；第一次本地导入才创建最后一层。相对链接按路径段做百分号编码。S3/R2 配置和秘密密钥写在 `userData/image-storage.json`，`settings.json` 与返回给界面的对象都不含秘密密钥。启用后上传成功才返回公开链接，失败不写本地文件。导入拒绝目录联接，也拒绝写出内容目录。修改 Frontmatter 标题不重命名文章或图片目录。
+本地图片目录与文章文件并列，名称是去掉 `.md` / `.mdx` 的文件名。新建不创建这个目录；第一次本地导入才创建最后一层。相对链接按路径段做百分号编码。S3/R2 配置和秘密密钥写在 `userData/image-storage.json`，`settings.json` 与返回给界面的对象都不含秘密密钥。启用后上传成功才返回公开链接，失败不写本地文件。新对象 key 为 `astro-desktop/YYYYMMDD_HHmmss_六位随机字符.扩展名`，时间采用电脑本地时区，随机字符来自 crypto，原始图片不转码。PUT 使用已签名的 `If-None-Match: *` 防止覆盖；名称冲突返回错误，由用户重新插入生成新 key。旧对象和链接不迁移。导入拒绝目录联接，也拒绝写出内容目录。修改 Frontmatter 标题不重命名文章或图片目录。
 
 发布到正文把 `src/contents/drafts` 下的文章路径换成 `src/contents/post` 下的同一相对路径，并同样移动或复制同名图片目录。先复制到临时名称，再改成最终名称；任一步失败都会把已放入正文的副本移回或删除，源草稿保持可读。目标已存在时不覆盖。操作不调用 Git，也不改 Frontmatter。监听在移动期间暂停，避免把同一次迁移记成删除加新建。
 

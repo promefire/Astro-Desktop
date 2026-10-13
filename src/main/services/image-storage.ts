@@ -1,4 +1,4 @@
-import { createHash, createHmac } from 'node:crypto'
+import { createHash, createHmac, randomInt } from 'node:crypto'
 import path from 'node:path'
 import { mkdir, open, rename, unlink } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
@@ -79,8 +79,8 @@ export async function putObject(storage: ImageStorage, key: string, body: Buffer
   const canonicalUri = `/${storage.bucket}/${encodedKey}`
   const payloadHash = sha256Hex(body)
   const host = endpoint.host
-  const canonicalHeaders = `content-type:${contentType}\nhost:${host}\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n`
-  const signedHeaders = 'content-type;host;x-amz-content-sha256;x-amz-date'
+  const canonicalHeaders = `content-type:${contentType}\nhost:${host}\nif-none-match:*\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n`
+  const signedHeaders = 'content-type;host;if-none-match;x-amz-content-sha256;x-amz-date'
   const canonical = ['PUT', canonicalUri, '', canonicalHeaders, signedHeaders, payloadHash].join('\n')
   const scope = `${date}/${storage.region}/s3/aws4_request`
   const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256Hex(canonical)].join('\n')
@@ -90,12 +90,13 @@ export async function putObject(storage: ImageStorage, key: string, body: Buffer
   try {
     response = await fetchImpl(new URL(canonicalUri, endpoint), {
       method: 'PUT',
-      headers: { 'content-type': contentType, 'x-amz-content-sha256': payloadHash, 'x-amz-date': amzDate, authorization },
+      headers: { 'content-type': contentType, 'if-none-match': '*', 'x-amz-content-sha256': payloadHash, 'x-amz-date': amzDate, authorization },
       body: new Uint8Array(body),
     })
   } catch (error) {
     throw new ServiceError('IMAGE_UPLOAD_FAILED', `图片上传失败，没有插入链接，也没有保存本地副本：${redact(errorMessage(error), storage)}`)
   }
+  if (response.status === 412) throw new ServiceError('IMAGE_NAME_CONFLICT', '远程图片名称已存在，没有覆盖已有图片。请重新插入以生成新名称。')
   if (!response.ok) throw new ServiceError('IMAGE_UPLOAD_FAILED', `图片上传被拒绝（HTTP ${response.status}）。没有插入链接，也没有保存本地副本。`)
   return `${storage.publicBaseUrl}/${encodedKey}`
 }
@@ -104,10 +105,14 @@ function redact(message: string, storage: ImageStorage): string {
   return [storage.secretAccessKey, storage.accessKeyId].filter(Boolean).reduce((text, secret) => text.split(secret).join('***'), message)
 }
 
-export function objectKey(projectPath: string, articlePath: string, fileName: string): string {
-  const project = createHash('sha256').update(projectPath).digest('hex').slice(0, 12)
-  const article = createHash('sha256').update(articlePath).digest('hex').slice(0, 12)
-  return `astro-desktop/${project}/${article}/${fileName}`
+export function objectKey(fileName: string, now = new Date()): string {
+  const pad = (value: number) => String(value).padStart(2, '0')
+  const day = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`
+  const time = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
+  // New uploads use local wall time and a six-character cryptographic random suffix.
+  // The conditional PUT also prevents overwrites in the event of a name collision.
+  const suffix = randomInt(36 ** 6).toString(36).padStart(6, '0')
+  return `astro-desktop/${day}_${time}_${suffix}${path.extname(fileName).toLowerCase()}`
 }
 
 export function createImageStorageService(file: string) {
