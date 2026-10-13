@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
-import { ArrowLeft, Code2, Columns2, Download, ExternalLink, Eye, FileDown, Globe, ImagePlus, LoaderCircle, Redo2, RotateCcw, Save, Search, Undo2 } from 'lucide-react'
+import { ArrowLeft, Code2, Columns2, Download, ExternalLink, Eye, FileDown, Globe, ImagePlus, LoaderCircle, Redo2, RotateCcw, Save, Search, Send, Undo2 } from 'lucide-react'
 import type { ArticleDocument, DesktopApi, EditorBuffer, EditorRecovery, PreviewArticleResult, Result } from '../../../shared/contracts'
 import { Button, cn } from './ui'
 import { SourceEditor, type SourceEditorHandle } from './SourceEditor'
@@ -10,7 +10,7 @@ import '../editor/editor.css'
 export interface ArticleEditorHandle { save(): Promise<boolean>; discard(): Promise<boolean>; isDirty(): boolean; isBusy(): boolean }
 interface Props {
   document: ArticleDocument; projectPath: string; api: DesktopApi;
-  onSaved(document: ArticleDocument): void; onBack(): void;
+  onSaved(document: ArticleDocument): void; onPublished(document: ArticleDocument): void; onBack(): void;
   onDirtyChange(dirty: boolean): void; onRecoveryChange(): void;
 }
 async function unwrap<T>(request: Promise<Result<T>>): Promise<T> {
@@ -20,7 +20,7 @@ async function unwrap<T>(request: Promise<Result<T>>): Promise<T> {
 }
 const message = (error: unknown) => error instanceof Error ? error.message : '操作失败，请重试。'
 
-export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEditor({ document, projectPath, api, onSaved, onBack, onDirtyChange, onRecoveryChange }, ref) {
+export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEditor({ document, projectPath, api, onSaved, onPublished, onBack, onDirtyChange, onRecoveryChange }, ref) {
   const cm = useRef<SourceEditorHandle>(null)
   const [source, setSource] = useState(document.source)
   const sourceRef = useRef(source)
@@ -40,6 +40,7 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
   const [externalPrompt, setExternalPrompt] = useState<null | 'dirty' | 'stale'>(null)
   const [externalSession, setExternalSession] = useState(false)
   const [sitePrompt, setSitePrompt] = useState(false)
+  const [publishPrompt, setPublishPrompt] = useState(false)
   const [siteUnresolved, setSiteUnresolved] = useState<PreviewArticleResult | null>(null)
   const externalSessionRef = useRef(false)
   const setExternal = (value: boolean) => { externalSessionRef.current = value; setExternalSession(value) }
@@ -215,6 +216,26 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
     catch (cause) { setError(message(cause)); setSitePrompt(false) }
     finally { workingRef.current = false; setWorking(false) }
   }
+  const runPublish = async () => {
+    if (workingRef.current || loadingRecovery || recovery || externalSessionRef.current) return
+    workingRef.current = true; setWorking(true); setError(''); setPublishPrompt(false)
+    try {
+      const result = await unwrap(api.publishDraft({ ...target, baseRevision: baseRevision.current }))
+      setNotice(result.message)
+      onPublished(result.document)
+    } catch (cause) { setError(message(cause)) }
+    finally { workingRef.current = false; setWorking(false) }
+  }
+  const saveAndPublish = async () => {
+    const saved = await save()
+    if (!saved) { setPublishPrompt(false); return }
+    await runPublish()
+  }
+  const discardAndPublish = async () => {
+    const discarded = await discard()
+    if (!discarded) return
+    await runPublish()
+  }
   const restoreRecovery = () => {
     if (!recovery) return
     baseRevision.current = recovery.baseRevision
@@ -250,7 +271,7 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
   }
 
   return <section className="article-editor" aria-label="文章编辑工作区" onKeyDownCapture={event => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); event.stopPropagation(); if (!externalSessionRef.current) void save() } }}>
-    <div className="editor-heading"><Button size="small" variant="ghost" onClick={onBack} disabled={working}><ArrowLeft size={16} />返回列表</Button><div className="editor-heading-title"><strong>{base.current.article.title}</strong><span>{target.relativePath}</span></div><span className={cn('editor-save-state', dirty && 'is-dirty')}>{externalSession ? '外部编辑中' : dirty ? '未保存' : '已保存'}</span><Button variant="primary" size="small" disabled={!dirty || working || loadingRecovery || !!recovery || externalSession} onClick={() => void save()}>{working ? <LoaderCircle size={15} className="spin" /> : <Save size={15} />}保存</Button></div>
+    <div className="editor-heading"><Button size="small" variant="ghost" onClick={onBack} disabled={working}><ArrowLeft size={16} />返回列表</Button><div className="editor-heading-title"><strong>{base.current.article.title}</strong><span>{target.relativePath}</span></div><span className={cn('editor-save-state', dirty && 'is-dirty')}>{externalSession ? '外部编辑中' : dirty ? '未保存' : '已保存'}</span>{document.article.kind === 'draft' && <Button size="small" disabled={working || loadingRecovery || !!recovery || externalSession} onClick={() => { if (dirtyRef.current) setPublishPrompt(true); else void runPublish() }}><Send size={15} />发布到正文</Button>}<Button variant="primary" size="small" disabled={!dirty || working || loadingRecovery || !!recovery || externalSession} onClick={() => void save()}>{working ? <LoaderCircle size={15} className="spin" /> : <Save size={15} />}保存</Button></div>
     {error && <div className="editor-error" role="alert">{error}</div>}
     {externalSession && <section className="external-editor-guide" aria-label="正在使用外部编辑器"><ExternalLink size={52} strokeWidth={1.25} aria-hidden="true" /><h2>正在使用外部编辑器</h2><p>文件已使用系统默认程序打开，您可以在外部编辑器中进行编辑。编辑完成后，请点击下方按钮重新加载内容。</p><Button disabled={working} onClick={() => void finishExternal()}>{working ? <LoaderCircle size={16} className="spin" /> : <Download size={16} />}重新加载</Button></section>}
     <div className="editor-workspace" hidden={externalSession || undefined}>
@@ -268,5 +289,6 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
     {externalPrompt === 'stale' && <Modal title="磁盘内容已变化" onCancel={() => { if (!working) setExternalPrompt(null) }}><p>磁盘上的文章与编辑区打开时的版本不同。重新加载会替换编辑区。取消则保持编辑区，并且不打开外部编辑器。</p><div className="dialog-actions"><Button disabled={working} onClick={() => setExternalPrompt(null)}>取消</Button><Button disabled={working} variant="primary" onClick={() => void reloadAndOpen()}>重新加载并打开</Button></div></Modal>}
     {sitePrompt && <Modal title="在站点中预览" onCancel={() => { if (!working) setSitePrompt(false) }}><p>本地站点读取的是磁盘上的文章，不是编辑区里尚未保存的内容。请先保存或放弃修改。取消不会打开浏览器。保存失败或发生冲突时不会打开。</p><div className="dialog-actions"><Button disabled={working} onClick={() => setSitePrompt(false)}>取消</Button><Button disabled={working} onClick={() => void discardAndPreview()}>放弃修改并预览</Button><Button disabled={working} variant="primary" onClick={() => void saveAndPreview()}>保存并预览</Button></div></Modal>}
     {siteUnresolved && <Modal title="无法确定文章地址" onCancel={() => setSiteUnresolved(null)}><p>{siteUnresolved.message}</p><div className="dialog-actions"><Button onClick={() => setSiteUnresolved(null)}>取消</Button><Button variant="primary" disabled={!siteUnresolved.homepage} onClick={() => void (async () => { try { await unwrap(api.openPreviewHome()); setNotice('已打开站点首页。尚未打开具体文章。'); setSiteUnresolved(null) } catch (cause) { setError(message(cause)) } })()}>打开站点首页</Button></div></Modal>}
+    {publishPrompt && <Modal title="发布到正文" onCancel={() => { if (!working) setPublishPrompt(false) }}><p>这只把草稿文件和它的同名图片目录移动到 src/contents/post。不会提交 Git，也不会构建或部署。请先保存或放弃编辑区里的修改。保存失败或磁盘版本冲突时不会移动文件。</p><div className="dialog-actions"><Button disabled={working} onClick={() => setPublishPrompt(false)}>取消</Button><Button disabled={working} onClick={() => void discardAndPublish()}>放弃修改并发布</Button><Button disabled={working} variant="primary" onClick={() => void saveAndPublish()}>保存并发布</Button></div></Modal>}
   </section>
 })

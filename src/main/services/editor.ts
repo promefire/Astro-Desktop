@@ -134,6 +134,17 @@ export function createEditorService(storage: string) {
   }
   return {
     checkpoint, get, clear, list,
+    async move(project: ProjectInfo, from: string, to: string): Promise<void> {
+      const record = await get(project, { projectPath: project.path, relativePath: from })
+      if (!record) return
+      const next: EditorRecovery = { ...record, relativePath: to }
+      await atomicJson(recoveryFile(project, to), next)
+      try { await clear(project, { projectPath: project.path, relativePath: from }) }
+      catch (error) {
+        await unlink(recoveryFile(project, to)).catch(() => undefined)
+        throw error
+      }
+    },
     save: async (project: ProjectInfo, value: unknown) => {
       try { return await save(project, value) } catch (error) {
         if (error instanceof ServiceError) throw error

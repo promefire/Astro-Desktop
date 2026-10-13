@@ -94,6 +94,7 @@ function registerHandlers(): void {
     return services.content.importImage({ projectPath: value.projectPath, relativePath: value.relativePath, fileName: basename(filePath), alt: '图片', bytes })
   })
   handle(IPC.readPreviewImage, (input) => services.content.readPreviewImage(input))
+  handle(IPC.publishDraft, (input) => services.content.publishDraft(input))
   handle(IPC.getImageStorage, () => services.imageStorage.get())
   handle(IPC.setImageStorage, (input) => services.imageStorage.update(input))
   services.content.subscribe(() => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(IPC.contentChanged) })

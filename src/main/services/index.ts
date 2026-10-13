@@ -11,6 +11,7 @@ import { deleteArticleInput, removeArticleFile } from './delete-article'
 import { createImageStorageService } from './image-storage'
 import { imageBytes, importArticleImage, readPreviewImage } from './images'
 import { createContentWatch } from './content-watch'
+import { publishDraft } from './publish-draft'
 import { createEditorService } from './editor'
 import { inspectDefaultEditors, missingAssociationMessage, openWithDefaultApp, type DefaultPathOpener, type RegistryQuery } from './external-editor'
 import { createPreviewService } from './preview'
@@ -115,6 +116,12 @@ export function createServices(settingsFilePath: string) {
         if (value.projectPath !== project.path || typeof value.relativePath !== 'string' || typeof value.destination !== 'string') return null
         return readPreviewImage(project, value.relativePath, value.destination)
       },
+      publishDraft: (input: unknown) => serialProject(async () => {
+        const project = current()
+        watch.pause()
+        try { return await publishDraft(project, input, (from, to) => editor.move(project, from, to)) }
+        finally { watch.resume() }
+      }),
       subscribe(listener: () => void) { watchListeners.add(listener); return () => watchListeners.delete(listener) },
       pauseWatch() { watch.pause() },
       resumeWatch() { watch.resume() },

@@ -29,6 +29,8 @@ React Renderer 只调用 `window.astroDesktop`。Preload 使用 `contextBridge` 
 
 本地图片目录与文章文件并列，名称是去掉 `.md` / `.mdx` 的文件名。新建不创建这个目录；第一次本地导入才创建最后一层。相对链接按路径段做百分号编码。S3/R2 配置和秘密密钥写在 `userData/image-storage.json`，`settings.json` 与返回给界面的对象都不含秘密密钥。启用后上传成功才返回公开链接，失败不写本地文件。导入拒绝目录联接，也拒绝写出内容目录。修改 Frontmatter 标题不重命名文章或图片目录。
 
+发布到正文把 `src/contents/drafts` 下的文章路径换成 `src/contents/post` 下的同一相对路径，并同样移动或复制同名图片目录。先复制到临时名称，再改成最终名称；任一步失败都会把已放入正文的副本移回或删除，源草稿保持可读。目标已存在时不覆盖。操作不调用 Git，也不改 Frontmatter。监听在移动期间暂停，避免把同一次迁移记成删除加新建。
+
 ## 下一阶段接口
 
 `src/shared/future-services.ts` 为后续 Frontmatter 表单更新、删除恢复、生产构建、Git 写操作和发布编排定义接口；这些未来接口没有实现，也不注册通用命令 IPC。普通草稿创建、源码保存、编辑恢复、本地预览和图片导入已转入实际 DesktopApi。AI 日报不增加创建接口，也不导入图片。
@@ -47,7 +49,7 @@ React Renderer 只调用 `window.astroDesktop`。Preload 使用 `contextBridge` 
 
 子进程环境去掉 `ELECTRON_*`，并去掉指向 Electron 的 `NODE_OPTIONS`；把所选 Node 所在目录放在 PATH 前面。不追加 `--host`，不改博客配置。状态只有在本次日志里的本地地址通过 HTTP 2xx/3xx 检查后才变为运行中。停止只对本次启动的进程编号执行 `taskkill /PID /T /F`。切换项目、关闭窗口后退出应用时结束该进程树。使用说明见 [PREVIEW.md](PREVIEW.md)。
 
-发布仍未实现。将来需要明确文件范围，fetch 后安全整合远端日报，冲突或构建失败停止；推送成功仅可报告部署待确认。路由核实见 RESEARCH.md。
+Git 发布仍未实现。草稿「发布到正文」只改变内容目录。将来的远程发布需要明确文件范围，fetch 后安全整合远端日报，冲突或构建失败停止；推送成功仅可报告部署待确认。路由核实见 RESEARCH.md。
 
 ## 参考
 
