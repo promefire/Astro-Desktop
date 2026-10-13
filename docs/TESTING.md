@@ -1,5 +1,9 @@
 # 测试记录
 
+## 2026-10-13：自动 WebP 压缩
+
+图片处理、图片存储与发布回归 18/18 通过；Electron 图片选择、真实 WebP 落盘、预览及保存端到端测试 1/1 通过；npm run build（包含 strict 类型检查）通过。测试真实 WebP 解码、体积压缩、透明度、方向、动画、无效输入及 S3 请求 MIME。云端请求使用注入 fetch，未访问真实 R2。
+
 ## 2026-10-13：S3 图片路径与随机文件名
 
 - `npx vitest run tests/images.test.ts`：**9 / 9 通过**。验证远程请求路径仅含 `astro-desktop/` 与时间戳随机文件名，返回 Markdown URL 与对象路径一致，上传字节及 Content-Type 保留；无本地副本。

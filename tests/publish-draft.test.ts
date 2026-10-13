@@ -1,3 +1,4 @@
+import { compressWebp } from '../src/main/services/image-processing'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -32,7 +33,7 @@ describe('publish a draft into the post directory', () => {
   it('moves the article and its image directory without rewriting links or remote urls', async () => {
     const created = await draft('我的 文章')
     await services.content.importImage({ projectPath: project, relativePath: created.article.relativePath, fileName: '图.png', alt: '图', bytes: png })
-    const source = `${created.source}\n![图](./%E6%88%91%E7%9A%84%20%E6%96%87%E7%AB%A0/%E5%9B%BE.png)\n![远程](https://images.example.com/a.png)\n`
+    const source = `${created.source}\n![图](./%E6%88%91%E7%9A%84%20%E6%96%87%E7%AB%A0/%E5%9B%BE.webp)\n![远程](https://images.example.com/a.webp)\n`
     const saved = await services.content.save({ projectPath: project, relativePath: created.article.relativePath, source, baseRevision: created.revision })
     await services.editor.checkpoint({ projectPath: project, relativePath: created.article.relativePath, source, baseRevision: saved.document.revision })
     const published = await services.content.publishDraft({ projectPath: project, relativePath: created.article.relativePath, baseRevision: saved.document.revision })
@@ -42,7 +43,7 @@ describe('publish a draft into the post directory', () => {
     const moved = await readFile(path.join(project, 'src/contents/post/我的 文章.md'), 'utf8')
     expect(moved).toBe(source)
     expect(moved).not.toMatch(/^draft:/m)
-    expect(await readFile(path.join(project, 'src/contents/post/我的 文章/图.png'))).toEqual(png)
+    expect(await readFile(path.join(project, 'src/contents/post/我的 文章/图.webp'))).toEqual(await compressWebp(png))
     expect(await readdir(path.join(project, 'src/contents/drafts'))).toEqual([])
     const recoveries = await services.editor.listRecoveries()
     expect(recoveries.entries.map(entry => entry.relativePath)).toEqual(['src/contents/post/我的 文章.md'])
@@ -78,13 +79,13 @@ describe('publish a draft into the post directory', () => {
     const created = await draft('共享')
     await services.content.importImage({ projectPath: project, relativePath: created.article.relativePath, fileName: 'a.png', alt: '图', bytes: png })
     const other = await draft('另一篇')
-    const linked = `${other.source}\n![图](./%E5%85%B1%E4%BA%AB/a.png)\n`
+    const linked = `${other.source}\n![图](./%E5%85%B1%E4%BA%AB/a.webp)\n`
     await services.content.save({ projectPath: project, relativePath: other.article.relativePath, source: linked, baseRevision: other.revision })
     const current = await services.content.read(created.article.relativePath)
     const published = await services.content.publishDraft({ projectPath: project, relativePath: created.article.relativePath, baseRevision: current.revision })
     expect(published.imageAction).toBe('copied')
-    expect(await readFile(path.join(project, 'src/contents/post/共享/a.png'))).toEqual(png)
-    expect(await readFile(path.join(project, 'src/contents/drafts/共享/a.png'))).toEqual(png)
+    expect(await readFile(path.join(project, 'src/contents/post/共享/a.webp'))).toEqual(await compressWebp(png))
+    expect(await readFile(path.join(project, 'src/contents/drafts/共享/a.webp'))).toEqual(await compressWebp(png))
     expect(await readFile(path.join(project, 'src/contents/drafts/另一篇.md'), 'utf8')).toBe(linked)
   })
 
@@ -98,10 +99,10 @@ describe('publish a draft into the post directory', () => {
     await expect(publishDraft(current, { projectPath: project, relativePath: created.article.relativePath, baseRevision: created.revision }, async () => undefined, { failAfter: 'article-renamed' })).rejects.toThrow(/正在恢复/)
     expect(await readFile(path.join(project, created.article.relativePath), 'utf8')).toBe(created.source)
     expect(await readdir(path.join(project, 'src/contents/post'))).toEqual([])
-    expect(await readFile(path.join(project, 'src/contents/drafts/中断/a.png'))).toEqual(png)
+    expect(await readFile(path.join(project, 'src/contents/drafts/中断/a.webp'))).toEqual(await compressWebp(png))
     await expect(publishDraft(current, { projectPath: project, relativePath: created.article.relativePath, baseRevision: created.revision }, async () => undefined, { failAfter: 'source-removed' })).rejects.toThrow(/正在恢复/)
     expect(await readFile(path.join(project, created.article.relativePath), 'utf8')).toBe(created.source)
     expect(await readdir(path.join(project, 'src/contents/post'))).toEqual([])
-    expect(await readFile(path.join(project, 'src/contents/drafts/中断/a.png'))).toEqual(png)
+    expect(await readFile(path.join(project, 'src/contents/drafts/中断/a.webp'))).toEqual(await compressWebp(png))
   })
 })

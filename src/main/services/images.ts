@@ -6,6 +6,7 @@ import { assetDirectory, imageMarkdown, localImageDestination, resolveMarkdownPa
 import { ServiceError, isMissing } from './errors'
 import { isWithin, normalizedRelative, safePath } from './paths'
 import { objectKey, putObject, type ImageStorage } from './image-storage'
+import { compressWebp } from './image-processing'
 
 export const IMAGE_LIMIT = 8 * 1024 * 1024
 const TYPES = new Map([['.png', 'image/png'], ['.jpg', 'image/jpeg'], ['.jpeg', 'image/jpeg'], ['.gif', 'image/gif'], ['.webp', 'image/webp'], ['.avif', 'image/avif']])
@@ -64,6 +65,9 @@ export async function importArticleImage(project: ProjectInfo, articlePath: stri
   const kind = contentKind(relativePath)
   if (!kind || kind === 'ai-daily') throw new ServiceError('UNSUPPORTED_CONTENT', '图片只导入到正文或草稿文章旁边。')
   const file = imageFileName(originalName)
+  bytes = await compressWebp(bytes)
+  file.name = `${path.basename(file.name, path.extname(file.name))}.webp`
+  file.contentType = 'image/webp'
   if (storage.enabled) {
     const key = objectKey(file.name)
     const destination = await putObject(storage, key, bytes, file.contentType, fetchImpl)

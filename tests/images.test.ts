@@ -1,3 +1,4 @@
+import sharp from 'sharp'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -53,14 +54,14 @@ describe('article image directories', () => {
     const first = await services.content.importImage({ projectPath: project, relativePath: created.article.relativePath, fileName: '截图 #1.png', alt: '说明 [一]', bytes: png })
     const second = await services.content.importImage({ projectPath: project, relativePath: created.article.relativePath, fileName: '截图 #1.png', alt: '二', bytes: png })
     expect(first).toMatchObject({ storage: 'local' })
-    expect(first.markdown).toBe(`![说明 一](${localImageDestination(created.article.relativePath, '截图 #1.png')})`)
-    expect(first.markdown).toContain('./%E6%88%91%E7%9A%84%20%E6%96%87%E7%AB%A0/%E6%88%AA%E5%9B%BE%20%231.png')
-    expect(second.markdown).toContain('%20%231-2.png')
+    expect(first.markdown).toBe(`![说明 一](${localImageDestination(created.article.relativePath, '截图 #1.webp')})`)
+    expect(first.markdown).toContain('./%E6%88%91%E7%9A%84%20%E6%96%87%E7%AB%A0/%E6%88%AA%E5%9B%BE%20%231.webp')
+    expect(second.markdown).toContain('%20%231-2.webp')
     const folder = path.join(project, 'src/contents/drafts/我的 文章')
-    expect((await readdir(folder)).sort()).toEqual(['截图 #1-2.png', '截图 #1.png'])
-    const destination = `./${encodeURIComponent('我的 文章')}/${encodeURIComponent('截图 #1.png')}`
+    expect((await readdir(folder)).sort()).toEqual(['截图 #1-2.webp', '截图 #1.webp'])
+    const destination = `./${encodeURIComponent('我的 文章')}/${encodeURIComponent('截图 #1.webp')}`
     const preview = await services.content.readPreviewImage({ projectPath: project, relativePath: created.article.relativePath, destination })
-    expect(preview?.startsWith('data:image/png;base64,')).toBe(true)
+    expect(preview?.startsWith('data:image/webp;base64,')).toBe(true)
     const saved = await services.content.save({ projectPath: project, relativePath: created.article.relativePath, source: created.source.replace('title: "我的 文章"', 'title: "改了标题"'), baseRevision: created.revision })
     expect(saved.document.article.relativePath).toBe(created.article.relativePath)
     expect(saved.document.article.title).toBe('改了标题')
@@ -89,9 +90,9 @@ describe('article image directories', () => {
       const address = String(url)
       const headers = new Headers(init?.headers)
       uploadedPath = new URL(address).pathname
-      expect(uploadedPath).toMatch(/^\/blog-images\/astro-desktop\/\d{8}_\d{6}_[a-z0-9]{6}\.png$/)
-      expect(headers.get('content-type')).toBe('image/png')
-      expect(Buffer.from(init?.body as Uint8Array)).toEqual(png)
+      expect(uploadedPath).toMatch(/^\/blog-images\/astro-desktop\/\d{8}_\d{6}_[a-z0-9]{6}\.webp$/)
+      expect(headers.get('content-type')).toBe('image/webp')
+      expect((await sharp(Buffer.from(init?.body as Uint8Array)).metadata()).format).toBe('webp')
       expect(headers.get('if-none-match')).toBe('*')
       expect(address).not.toContain('secret-value-should-not-leak')
       expect(headers.get('authorization')).toContain('AKIAtestkey')
