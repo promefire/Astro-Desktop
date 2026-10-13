@@ -27,7 +27,7 @@ CodeMirror 提供 Markdown / YAML 高亮、行号、折叠、查找替换、撤�
 
 ## 预览边界
 
-这里的预览只渲染 Markdown / GFM，不执行原始 HTML、脚本、MDX 组件、import 或表达式；图片显示说明文本，链接显示文字，不请求外部资源。布局、组件与图片的完整效果使用顶栏「本地预览」，见 [PREVIEW.md](PREVIEW.md)。编辑器工具栏的「在站点中预览」打开的是已启动的本地站点，不是这个基础预览。
+这里的预览只渲染 Markdown / GFM，不执行原始 HTML、脚本、MDX 组件、import 或表达式。本地图片由主进程读成 data URL，https 图片直接显示；http、file 和其他地址不请求。链接显示文字，不导航。布局与组件的完整效果使用顶栏「本地预览」，见 [PREVIEW.md](PREVIEW.md)。编辑器工具栏的「在站点中预览」打开的是已启动的本地站点，不是这个基础预览。
 
 实现参考 HexoHub 研究快照 `bb39de8` 的主区编辑器模式和分栏交互，保留独立实现。YAML 区域使用 CodeMirror 官方 [yamlFrontmatter](https://code.haverbeke.berlin/codemirror/lang-yaml)，正文使用 Markdown 语言支持；不会将语法解析当成执行文章代码。
 

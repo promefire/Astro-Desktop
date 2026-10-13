@@ -8,6 +8,9 @@ import { createSettingsService } from './settings'
 import { readGit } from './git'
 import { createDraft, validateDraftInput } from './drafts'
 import { deleteArticleInput, removeArticleFile } from './delete-article'
+import { createImageStorageService } from './image-storage'
+import { imageBytes, importArticleImage, readPreviewImage } from './images'
+import { createContentWatch } from './content-watch'
 import { createEditorService } from './editor'
 import { inspectDefaultEditors, missingAssociationMessage, openWithDefaultApp, type DefaultPathOpener, type RegistryQuery } from './external-editor'
 import { createPreviewService } from './preview'
@@ -17,6 +20,9 @@ export { ServiceError } from './errors'
 export function createServices(settingsFilePath: string) {
   const settings = createSettingsService(settingsFilePath)
   const editor = createEditorService(path.join(path.dirname(settingsFilePath), 'editor'))
+  const imageStorage = createImageStorageService(path.join(path.dirname(settingsFilePath), 'image-storage.json'))
+  const watchListeners = new Set<() => void>()
+  const watch = createContentWatch(() => { for (const listener of watchListeners) listener() })
   let active: ProjectInfo | null = null
   const preview = createPreviewService({
     project: () => active,
@@ -38,6 +44,7 @@ export function createServices(settingsFilePath: string) {
     const project = await inspectProject(directory)
     await settings.rememberProject(project.path, project.name)
     active = project
+    if (process.env.VITEST !== 'true') watch.follow(project)
     if (previous !== project.path) await preview.release(previous ?? '')
     return structuredClone(project)
   }
@@ -91,6 +98,26 @@ export function createServices(settingsFilePath: string) {
         try { await editor.clear(project, target) } catch { /* The article file is already gone. */ }
         return { relativePath: target.relativePath }
       }),
+      importImage: (input: unknown) => serialProject(async () => {
+        const project = current()
+        if (!input || typeof input !== 'object' || Array.isArray(input)) throw new ServiceError('INVALID_IMAGE', '图片参数无效。')
+        const value = input as Record<string, unknown>
+        const allowed = ['projectPath', 'relativePath', 'fileName', 'alt', 'bytes']
+        if (Object.keys(value).some(key => !allowed.includes(key))) throw new ServiceError('INVALID_IMAGE', '图片参数无效。')
+        if (value.projectPath !== project.path) throw new ServiceError('PROJECT_CHANGED', '当前项目已切换，没有导入图片。')
+        if (typeof value.relativePath !== 'string' || typeof value.fileName !== 'string' || typeof value.alt !== 'string') throw new ServiceError('INVALID_IMAGE', '图片参数无效。')
+        return importArticleImage(project, value.relativePath, value.fileName, imageBytes(value.bytes), value.alt, await imageStorage.secret())
+      }),
+      readPreviewImage: async (input: unknown) => {
+        const project = current()
+        if (!input || typeof input !== 'object') return null
+        const value = input as Record<string, unknown>
+        if (value.projectPath !== project.path || typeof value.relativePath !== 'string' || typeof value.destination !== 'string') return null
+        return readPreviewImage(project, value.relativePath, value.destination)
+      },
+      subscribe(listener: () => void) { watchListeners.add(listener); return () => watchListeners.delete(listener) },
+      pauseWatch() { watch.pause() },
+      resumeWatch() { watch.resume() },
       resolveArticlePath: async (relative: string) => resolve(current(), relative),
       read: async (relative: string) => { const project = current(); return read(project, relative, await readGit(project.path)) },
       list: async (): Promise<ContentIndex> => {
@@ -155,5 +182,6 @@ export function createServices(settingsFilePath: string) {
       clearRecovery: (input: unknown) => serialProject(() => editor.clear(current(), input)),
       listRecoveries: () => serialProject(() => editor.list(current())),
     },
+    imageStorage,
   }
 }

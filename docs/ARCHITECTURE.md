@@ -13,7 +13,7 @@ React Renderer 只调用 `window.astroDesktop`。Preload 使用 `contextBridge` 
 3. AstroBlogAdapter 固定正文、草稿和 AI 日报三个目录的扩展名及属性规则。
 4. ContentService 递归扫描；FrontmatterService 安全解析 YAML，保留 source、body、未知字段与 revision。
 5. GitService 通过参数化系统 Git CLI 读取本地分支、远程和 porcelain 状态。无 Git 或失败时显示未知状态，不能伪造 clean。
-6. Renderer 进行展示筛选；CodeMirror 维护原始源码，Markdown 基础预览不执行 HTML / MDX，不访问文章外部资源。
+6. Renderer 进行展示筛选；CodeMirror 维护原始源码。Markdown 基础预览不执行 HTML / MDX。本地图片经主进程读成 data URL，https 图片直接显示。
 
 所有文章路径须位于授权项目和对应 collection 内。字符串路径与解析后的真实路径均进行检查，拒绝穿越、符号链接 / junction 逃逸以及非法文件类型。扫描故障按文件隔离，界面呈现诊断。
 
@@ -25,11 +25,13 @@ React Renderer 只调用 `window.astroDesktop`。Preload 使用 `contextBridge` 
 
 新建先 `open(wx)` 独占临时文件、写入 / sync / 关闭，再通过 [Node fsPromises.link](https://nodejs.org/api/fs.html#fspromiseslinkexistingpath-newpath) 创建目标名称。同名失败时重试带序号名称，不以覆盖性 rename 回退。最后只移除自己创建的临时文件；被杀进程或文件锁可能留下 `.tmp`（不参与文章读取）。此策略需要硬链接支持，已有文件、同名目录和并行新建有测试覆盖。不能保证抵御同机恶意进程持续更换目录的文件系统竞态攻击。
 
-发布日期保留文档日期语义，不用 UTC 转换导致日期跨天。正文与草稿使用同一套文章字段，但 `kind` 来自目录：`src/contents/post`、`src/contents/drafts`、`src/contents/ai-daily`。Frontmatter 的 `draft` 只按原值保留，缺失时为未设置，无效时报告字段问题，不把文章改列入另一个目录。当前博客的 Astro 集合没有 drafts，本地预览因此不为草稿生成地址。每次刷新重新读磁盘；本阶段无自动文件监听。文章统计是对这份索引的只读聚合，计算在 `src/shared/article-stats.ts`，不另建统计库，也不把未保存编辑区计入。切换项目时先清空索引，过期响应不能写回新项目。口径见 [STATS.md](STATS.md)。
+发布日期保留文档日期语义，不用 UTC 转换导致日期跨天。正文与草稿使用同一套文章字段，但 `kind` 来自目录：`src/contents/post`、`src/contents/drafts`、`src/contents/ai-daily`。Frontmatter 的 `draft` 只按原值保留，缺失时为未设置，无效时报告字段问题，不把文章改列入另一个目录。当前博客的 Astro 集合没有 drafts，本地预览因此不为草稿生成地址。`src/contents` 上的递归监听会在文件变化后重新扫描并只更新索引，暂停期间的事件丢弃；它不替换编辑区。文章统计是对这份索引的只读聚合，计算在 `src/shared/article-stats.ts`，不另建统计库，也不把未保存编辑区计入。切换项目时先清空索引，过期响应不能写回新项目。口径见 [STATS.md](STATS.md)。
+
+本地图片目录与文章文件并列，名称是去掉 `.md` / `.mdx` 的文件名。新建不创建这个目录；第一次本地导入才创建最后一层。相对链接按路径段做百分号编码。S3/R2 配置和秘密密钥写在 `userData/image-storage.json`，`settings.json` 与返回给界面的对象都不含秘密密钥。启用后上传成功才返回公开链接，失败不写本地文件。导入拒绝目录联接，也拒绝写出内容目录。修改 Frontmatter 标题不重命名文章或图片目录。
 
 ## 下一阶段接口
 
-`src/shared/future-services.ts` 为后续 Frontmatter 表单更新、附件、删除恢复、生产构建、Git 写操作和发布编排定义接口；这些未来接口没有实现，也不注册通用命令 IPC。普通草稿创建、源码保存、编辑恢复和本地预览已转入实际 DesktopApi；AI 日报不增加创建或专用编辑接口。
+`src/shared/future-services.ts` 为后续 Frontmatter 表单更新、删除恢复、生产构建、Git 写操作和发布编排定义接口；这些未来接口没有实现，也不注册通用命令 IPC。普通草稿创建、源码保存、编辑恢复、本地预览和图片导入已转入实际 DesktopApi。AI 日报不增加创建接口，也不导入图片。
 
 ## 编辑器与保存
 

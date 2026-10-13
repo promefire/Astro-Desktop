@@ -30,6 +30,11 @@ export interface CreateDraftInput {
   projectPath: string; title: string; tags: string[]; category: string; description: string;
 }
 export interface ArticleTarget { projectPath: string; relativePath: string }
+export interface ImageStoragePublic { enabled: boolean; endpoint: string; region: string; bucket: string; publicBaseUrl: string; accessKeyHint: string; secretConfigured: boolean }
+export interface ImageStorageUpdate { enabled: boolean; endpoint: string; region: string; bucket: string; publicBaseUrl: string; accessKeyId: string; secretAccessKey: string }
+export interface ImportImageInput extends ArticleTarget { fileName: string; alt: string; bytes: Uint8Array }
+export interface ImportImageResult { markdown: string; storage: 'local' | 'remote' }
+export interface PreviewImageInput extends ArticleTarget { destination: string }
 export interface EditorBuffer extends ArticleTarget { source: string; baseRevision: string }
 export interface EditorRecovery extends EditorBuffer { updatedAt: string }
 export interface RecoveryIndex { entries: Array<ArticleTarget & { updatedAt: string }>; issues: string[] }
@@ -47,6 +52,12 @@ export interface DesktopApi {
   readArticle(relativePath: string): Promise<Result<ArticleDocument>>;
   createDraft(input: CreateDraftInput): Promise<Result<ArticleDocument>>;
   deleteArticle(input: ArticleTarget): Promise<Result<{ relativePath: string }>>;
+  importImage(input: ImportImageInput): Promise<Result<ImportImageResult>>;
+  chooseArticleImage(input: ArticleTarget): Promise<Result<ImportImageResult | null>>;
+  readPreviewImage(input: PreviewImageInput): Promise<Result<string | null>>;
+  getImageStorage(): Promise<Result<ImageStoragePublic>>;
+  setImageStorage(input: ImageStorageUpdate): Promise<Result<ImageStoragePublic>>;
+  onContentChanged(listener: () => void): () => void;
   saveArticle(input: EditorBuffer): Promise<Result<SaveArticleResult>>;
   checkpointEditor(input: EditorBuffer): Promise<Result<EditorRecovery>>;
   getEditorRecovery(input: ArticleTarget): Promise<Result<EditorRecovery | null>>;
@@ -76,6 +87,9 @@ export const IPC = {
   refreshProject: 'project:refresh', listArticles: 'content:list', readArticle: 'content:read',
   revealArticle: 'content:reveal', openProjectFolder: 'project:reveal',
   createDraft: 'content:create-draft', deleteArticle: 'content:delete',
+  importImage: 'content:import-image', chooseArticleImage: 'content:choose-image', readPreviewImage: 'content:preview-image',
+  contentChanged: 'content:changed',
+  getImageStorage: 'image-storage:get', setImageStorage: 'image-storage:set',
   saveArticle: 'content:save', checkpointEditor: 'editor:checkpoint', getEditorRecovery: 'editor:recovery',
   clearEditorRecovery: 'editor:clear-recovery', listEditorRecoveries: 'editor:list-recoveries',
   setEditorDirty: 'editor:dirty', closeRequested: 'window:close-requested', closeWindow: 'window:close',

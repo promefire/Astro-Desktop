@@ -15,6 +15,16 @@ const api: DesktopApi = {
   readArticle: (path) => ipcRenderer.invoke(IPC.readArticle, path),
   createDraft: (input) => ipcRenderer.invoke(IPC.createDraft, input),
   deleteArticle: (input) => ipcRenderer.invoke(IPC.deleteArticle, input),
+  importImage: (input) => ipcRenderer.invoke(IPC.importImage, input),
+  chooseArticleImage: (input) => ipcRenderer.invoke(IPC.chooseArticleImage, input),
+  readPreviewImage: (input) => ipcRenderer.invoke(IPC.readPreviewImage, input),
+  getImageStorage: () => ipcRenderer.invoke(IPC.getImageStorage),
+  setImageStorage: (input) => ipcRenderer.invoke(IPC.setImageStorage, input),
+  onContentChanged: (listener) => {
+    const callback = () => listener()
+    ipcRenderer.on(IPC.contentChanged, callback)
+    return () => { ipcRenderer.removeListener(IPC.contentChanged, callback) }
+  },
   saveArticle: (input) => ipcRenderer.invoke(IPC.saveArticle, input),
   checkpointEditor: (input) => ipcRenderer.invoke(IPC.checkpointEditor, input),
   getEditorRecovery: (input) => ipcRenderer.invoke(IPC.getEditorRecovery, input),

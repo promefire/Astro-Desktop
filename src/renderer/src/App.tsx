@@ -13,6 +13,7 @@ import { CreateDraftDialog } from './components/CreateDraftDialog'
 import { ArticleEditor, type ArticleEditorHandle } from './components/ArticleEditor'
 import { RecoveriesDialog } from './components/RecoveriesDialog'
 import { ExternalEditorSettings } from './components/ExternalEditorSettings'
+import { ImageStorageSettings } from './components/ImageStorageSettings'
 import { PreviewPanel } from './components/PreviewPanel'
 import { StatsView } from './components/StatsView'
 import { ArticleListRow } from './components/ArticleListRow'
@@ -119,6 +120,13 @@ function App() {
     const stop = api.onPreviewState(snapshot => setPreviewPhase(snapshot.phase))
     void unwrap(api.getPreview()).then(snapshot => setPreviewPhase(snapshot.phase)).catch(() => undefined)
     return stop
+  }, [api])
+  useEffect(() => {
+    if (!api) return
+    return api.onContentChanged(() => {
+      const token = operationId.current
+      void unwrap(api.listArticles()).then(next => { if (token === operationId.current) setIndex(next) }).catch(() => undefined)
+    })
   }, [api])
   const loadRecoveries = useCallback(async () => {
     if (!api || !project) return
@@ -446,6 +454,7 @@ function SettingsView({ api, project, settings, themeBusy, onTheme, onOpenFolder
   return <main className="settings-content"><div className="settings-inner"><div className="heading-overline">工作空间</div><h1>项目设置</h1><p className="settings-intro">当前项目的信息与桌面偏好。</p>
     <section className="settings-section"><div className="settings-section-title"><div><h2>外观</h2><p>为你的工作环境选择合适的界面。</p></div></div><div className="theme-options">{([{ value: 'light', label: '浅色', icon: Sun }, { value: 'dark', label: '深色', icon: Moon }, { value: 'system', label: '跟随系统', icon: Monitor }] as const).map(({ value, label, icon: Icon }) => <button key={value} className={cn('theme-option', settings.theme === value && 'is-active')} aria-pressed={settings.theme === value} disabled={themeBusy} onClick={() => void onTheme(value)}><Icon size={19} /><span>{label}</span>{settings.theme === value && <Check size={15} />}</button>)}</div></section>
     {api && <ExternalEditorSettings api={api} />}
+    {api && <ImageStorageSettings api={api} />}
     <section className="settings-section"><div className="settings-section-title"><div><h2>博客项目</h2><p>读取现有博客文件与配置，不执行项目脚本。</p></div>{project && <Button size="small" onClick={onOpenFolder}><FolderOpen size={15} />打开文件夹</Button>}</div>{project ? <dl className="settings-facts"><Property label="项目名称">{project.name}</Property><Property label="本地目录"><code>{project.path}</code></Property><Property label="适配器">promefire / Astro_Blog</Property><Property label="Astro 版本">{project.astroVersion}</Property><Property label="包管理器">{project.packageManager ?? '未声明'}</Property><Property label="正文"><code>{project.contentDirectories.post}</code></Property><Property label="草稿"><code>{project.contentDirectories.draft}</code></Property><Property label="AI 日报"><code>{project.contentDirectories['ai-daily']}</code></Property></dl> : <div className="settings-no-project"><FolderOpen size={25} /><p>选择博客目录后查看项目配置。</p><Button onClick={onOpenProject} disabled={busy}>打开项目</Button></div>}</section>
     {project && <><section className="settings-section"><div className="settings-section-title"><div><h2>Git 信息</h2><p>来自本地仓库的只读信息。</p></div></div><dl className="settings-facts"><Property label="Git 可用">{project.git.available ? '可用' : '不可用'}</Property><Property label="仓库状态">{project.git.isRepository ? '已识别 Git 仓库' : '非 Git 仓库'}</Property><Property label="当前分支">{project.git.branch ?? '未识别'}</Property><Property label="远程地址"><code>{project.git.remote ?? '未配置'}</code></Property></dl>{project.git.error && <p className="settings-warning"><AlertCircle size={15} />{project.git.error}</p>}</section><section className="settings-section"><div className="settings-section-title"><div><h2>项目脚本</h2><p>读取自 package.json。本地预览会执行 dev，不会在这里改写脚本。</p></div><Badge>只读</Badge></div>{Object.keys(project.scripts).length ? <dl className="script-list">{Object.entries(project.scripts).map(([name, command]) => <div key={name}><dt>{name}</dt><dd><code>{command}</code></dd></div>)}</dl> : <p className="muted">未声明脚本</p>}</section>{(project.warnings.length > 0 || issues.length > 0) && <section className="settings-section"><div className="settings-section-title"><div><h2>读取提示</h2><p>修正文件后刷新内容库以重新检查。</p></div><Badge tone="warning">{project.warnings.length + issues.length} 项</Badge></div><ul className="settings-issues">{project.warnings.map((warning, idx) => <li key={`project-${idx}`}><AlertCircle size={16} /><p>{warning}</p></li>)}{issues.map((issue, idx) => <li key={`file-${idx}`}><AlertCircle size={16} /><div><code>{issue.path}</code><p>{issue.message}</p></div></li>)}</ul></section>}</>}
   </div></main>

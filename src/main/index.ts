@@ -1,12 +1,14 @@
 import { app, BrowserWindow, dialog, ipcMain, net, protocol, session, shell } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
-import { resolve, dirname, relative, isAbsolute, join } from 'node:path'
+import { resolve, dirname, relative, isAbsolute, join, basename } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { realpath } from 'node:fs/promises'
 import { IPC } from '../shared/contracts'
 import type { Result, Theme } from '../shared/contracts'
 import { createServices, ServiceError } from './services'
+import { readFile, stat } from 'node:fs/promises'
 import { exportInput, writeEditorCopy } from './services/export-copy'
+import { IMAGE_LIMIT } from './services/images'
 import { localOrigin } from './services/preview-url'
 
 const runtimeDir = typeof __dirname === 'string' ? __dirname : dirname(fileURLToPath(import.meta.url))
@@ -77,6 +79,24 @@ function registerHandlers(): void {
   handle(IPC.readArticle, (path) => services.content.read(stringArgument(path)))
   handle(IPC.createDraft, (input) => services.content.createDraft(input))
   handle(IPC.deleteArticle, (input) => services.content.deleteArticle(input))
+  handle(IPC.importImage, (input) => services.content.importImage(input))
+  handle(IPC.chooseArticleImage, async (input) => {
+    if (!mainWindow) throw new Error('主窗口不可用。')
+    if (!input || typeof input !== 'object') throw new ServiceError('INVALID_IMAGE', '图片参数无效。')
+    const value = input as { projectPath?: unknown; relativePath?: unknown }
+    if (typeof value.projectPath !== 'string' || typeof value.relativePath !== 'string') throw new ServiceError('INVALID_IMAGE', '图片参数无效。')
+    const result = await dialog.showOpenDialog(mainWindow, { title: '选择图片', properties: ['openFile'], filters: [{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif'] }] })
+    if (result.canceled || !result.filePaths[0]) return null
+    const filePath = result.filePaths[0]
+    const info = await stat(filePath)
+    if (!info.isFile() || info.size > IMAGE_LIMIT) throw new ServiceError('INVALID_IMAGE', '图片为空或超过 8 MB。')
+    const bytes = new Uint8Array(await readFile(filePath))
+    return services.content.importImage({ projectPath: value.projectPath, relativePath: value.relativePath, fileName: basename(filePath), alt: '图片', bytes })
+  })
+  handle(IPC.readPreviewImage, (input) => services.content.readPreviewImage(input))
+  handle(IPC.getImageStorage, () => services.imageStorage.get())
+  handle(IPC.setImageStorage, (input) => services.imageStorage.update(input))
+  services.content.subscribe(() => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(IPC.contentChanged) })
   handle(IPC.saveArticle, (input) => services.content.save(input))
   handle(IPC.checkpointEditor, (input) => services.editor.checkpoint(input))
   handle(IPC.getEditorRecovery, (input) => services.editor.getRecovery(input))

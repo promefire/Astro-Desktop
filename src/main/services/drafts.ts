@@ -72,6 +72,15 @@ async function writableCollection(project: ProjectInfo): Promise<string> {
   return directory
 }
 
+async function nameTaken(directory: string, stem: string): Promise<boolean> {
+  for (const name of [`${stem}.md`, `${stem}.mdx`, stem]) {
+    try { await lstat(path.join(directory, name)); return true } catch (error) {
+      if (!isMissing(error)) throw error
+    }
+  }
+  return false
+}
+
 export async function createDraft(project: ProjectInfo, input: CreateDraftInput): Promise<ArticleDocument> {
   try { return await writeDraft(project, input) } catch (error) {
     if (error instanceof ServiceError) throw error
@@ -101,6 +110,7 @@ async function writeDraft(project: ProjectInfo, input: CreateDraftInput): Promis
     for (let suffix = 1; suffix <= 1000; suffix++) {
       await writableCollection(project)
       const name = `${stem}${suffix === 1 ? '' : `-${suffix}`}.md`
+      if (await nameTaken(directory, name.slice(0, -3))) continue
       try {
         // A hard link publishes the complete file without replacing an existing name.
         // Unlike rename on Windows/Unix, an occupied target always fails.
