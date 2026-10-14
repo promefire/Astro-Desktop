@@ -13,7 +13,7 @@ React Renderer 只调用 `window.astroDesktop`。Preload 使用 `contextBridge` 
 3. AstroBlogAdapter 固定正文、草稿和 AI 日报三个目录的扩展名及属性规则。
 4. ContentService 递归扫描；FrontmatterService 安全解析 YAML，保留 source、body、未知字段与 revision。
 5. GitService 通过参数化系统 Git CLI 读取本地分支、远程和 porcelain 状态。无 Git 或失败时显示未知状态，不能伪造 clean。
-6. Renderer 进行展示筛选；Muya 编辑正文，保存时拼回原始 frontmatter。本地图片经主进程读成 data URL，https 图片直接显示。
+6. Renderer 进行展示筛选。编辑模式用 Muya 编辑正文，源码模式用 CodeMirror 6 编辑同一份正文；保存时拼回原始 frontmatter。本地图片经主进程读成 data URL，https 图片直接显示。
 
 所有文章路径须位于授权项目和对应 collection 内。字符串路径与解析后的真实路径均进行检查，拒绝穿越、符号链接 / junction 逃逸以及非法文件类型。扫描故障按文件隔离，界面呈现诊断。
 
@@ -37,7 +37,7 @@ React Renderer 只调用 `window.astroDesktop`。Preload 使用 `contextBridge` 
 
 ## 编辑器与保存
 
-`MuyaEditor` 是 @muyajs/core（MarkText Muya 内核）的 React 适配层。`markdownBody` 从源中按 frontmatter 边界切出正文交给 Muya；保存时把切出的原始 frontmatter 原文与 Muya 当前正文拼接，写回磁盘。Muya 只维护正文，不解析 frontmatter。右栏属性来自最后成功读取 / 保存的 ArticleDocument。Hash 数据路由的 blocker 与原生窗口 close 事件共同处理未保存提示。
+`ArticleEditor` 持有一份正文缓冲区。`splitMarkdownSource` 按 frontmatter 边界切出正文，并按字节保留 BOM 与 frontmatter。编辑模式的 `MuyaEditor` 是 @muyajs/core 的 React 适配层：React host 保持稳定，Muya 只管理内部挂载节点。源码模式的 `SourceEditor` 是一个 CodeMirror 6 实例，只编辑正文。保存时把原始 frontmatter 与当前正文拼接，写回磁盘。两种模式都不解析或改写 frontmatter。右栏属性来自最后成功读取 / 保存的 ArticleDocument。Hash 数据路由的 blocker 与原生窗口 close 事件共同处理未保存提示。`.mdx` 不创建 Muya 实例。
 
 `content:save` 接收 projectPath、relativePath、source、baseRevision，主进程验证活动项目、真实路径、普通文件和前置版本；写临时文件并 sync、备份旧源码、再次核对 hash、rename 原子替换。损坏元数据停止保存。恢复记录与备份仅写 `userData/editor/`；保存前先持久化缓冲区，保存完成后的清理失败单独报告。副本必须由原生保存对话框提供目的路径，采用不覆盖创建。详细限制见 [EDITOR.md](EDITOR.md)。
 

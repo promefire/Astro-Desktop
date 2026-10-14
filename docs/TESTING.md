@@ -1,5 +1,15 @@
 # 测试记录
 
+## 2026-10-14：编辑模式与源码模式
+
+- `npm run typecheck` 通过，`npm run build` 通过。
+- `npm test`：**87 通过、1 跳过**。跳过项是 `tests/real-blog.test.ts`，因为没有设置 `ASTRO_BLOG_TEST_PATH`。`tests/source-state.test.ts` 覆盖 Frontmatter 按字节保留、注释和字段顺序，以及只把换行差异视为相同。
+- `npx playwright test tests/e2e/`：12 项里 11 项通过。`desktop.spec.ts` 仍按「MDX 必须看到 Muya」断言，与「MDX 只进入源码模式」冲突而失败。断言改为源码模式、禁用编辑模式、不创建 Muya 后，单独重跑 `tests/e2e/desktop.spec.ts` 通过。同一构建上的其余 11 项已通过，没有在改断言后把全套再跑一遍。
+- 模式专项 `tests/e2e/editor-modes.spec.ts` 覆盖：`.md` 默认编辑模式且正文可见；两种模式来回切换不丢文、不重复正文、切换本身不写文件；两种模式保存都写入真实文件并保留 Frontmatter；CRLF 标题可渲染且未保存前磁盘换行不变；未保存时的导航和关闭保护；恢复、放弃修改和重新加载同步两个编辑器；源码模式查找替换、撤销重做和 Ctrl+S；两个模式插入图片且第二次插入使用新文件名；`.mdx` 不能进入 Muya；深色主题、长文滚动和窄窗口；切换文章后正文不串篇。
+- `tests/e2e/dev.spec.ts` 在开发模式 StrictMode 下确认只有一个 Muya 实例。
+- 真实博客 E2E 使用默认路径 `F:\blog\Astro_Blog`，只读打开。测试前后比较 `src/contents` 文件哈希和 `git status --porcelain`，两者一致。没有保存、发布或提交原始博客。
+- 测试截图在 `test-results/`，不纳入提交。本轮 E2E 重写过 `docs/images/` 下的文档截图，提交前已恢复为原版本。
+
 ## 2026-10-14：Muya 正文挂载与显示回归
 
 - 修复前：新增开发模式回归无法找到 `.muya-editor-host`，复现 React StrictMode 重挂载后的空白问题。

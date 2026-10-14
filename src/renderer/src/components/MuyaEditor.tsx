@@ -8,8 +8,10 @@ const editorMarkdown = (source: string) => source.replace(/\r\n|\r/g, '\n')
 export interface MuyaEditorHandle {
   undo(): void
   redo(): void
-  insert(markdown: string): void
-  replace(source: string): void
+  insert(markdown: string): boolean
+  /** Load Markdown without notifying. Returns the Markdown Muya actually stores. */
+  replace(source: string): string
+  getMarkdown(): string
   focus(): void
 }
 
@@ -33,6 +35,7 @@ export const MuyaEditor = forwardRef<MuyaEditorHandle, Props>(function MuyaEdito
   const onImagesRef = useRef(props.onImages)
   const onMarkdownPasteRef = useRef(props.onMarkdownPaste)
   const suppressingRef = useRef(false)
+  const suppressToken = useRef(0)
 
   useEffect(() => { onChangeRef.current = props.onChange }, [props.onChange])
   useEffect(() => { onSaveRef.current = props.onSave }, [props.onSave])
@@ -45,22 +48,29 @@ export const MuyaEditor = forwardRef<MuyaEditorHandle, Props>(function MuyaEdito
     redo: () => { muyaRef.current?.focus(); muyaRef.current?.redo(); muyaRef.current?.focus() },
     insert: (markdown: string) => {
       const instance = muyaRef.current
-      if (!instance) return
+      if (!instance) return false
       suppressingRef.current = true
       instance.setContent(instance.getMarkdown() + editorMarkdown(markdown))
       suppressingRef.current = false
       onChangeRef.current(instance.getMarkdown())
       instance.focus()
+      return true
     },
     replace: (source: string) => {
       const instance = muyaRef.current
-      if (!instance) return
+      const normalized = editorMarkdown(source)
+      if (!instance) return normalized
+      if (instance.getMarkdown() === normalized) return instance.getMarkdown()
       initialBodyRef.current = source
+      const token = ++suppressToken.current
       suppressingRef.current = true
-      instance.setContent(editorMarkdown(source))
-      suppressingRef.current = false
-      onChangeRef.current(source)
+      instance.setContent(normalized)
+      const actual = instance.getMarkdown()
+      // setContent can cause a follow-up input event on a later frame. Ignore that echo.
+      requestAnimationFrame(() => requestAnimationFrame(() => { if (suppressToken.current === token) suppressingRef.current = false }))
+      return actual
     },
+    getMarkdown: () => muyaRef.current?.getMarkdown() ?? editorMarkdown(initialBodyRef.current),
     focus: () => { muyaRef.current?.focus() },
   }))
 
@@ -100,7 +110,6 @@ export const MuyaEditor = forwardRef<MuyaEditorHandle, Props>(function MuyaEdito
       suppressingRef.current = true
       muyaRef.current.setContent(editorMarkdown(props.initialBody))
       suppressingRef.current = false
-      onChangeRef.current(props.initialBody)
     }
   }, [props.initialBody])
 

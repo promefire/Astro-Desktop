@@ -4,7 +4,7 @@
 
 ## 已确认的产品决定
 
-- 文章属性留在右边栏。主工作区使用 MarkText Muya 内核（@muyajs/core）作为唯一内置编辑模式；编辑正文，保存时拼回原始 frontmatter。
+- 文章属性留在右边栏。主工作区有两种模式：编辑模式使用 MarkText Muya 内核（@muyajs/core），源码模式使用 CodeMirror 6。两者编辑同一份正文，保存时拼回原始 frontmatter。不提供独立预览或分栏。`.mdx` 只使用源码模式。
 - 参考 HexoHub 的创建弹窗、编辑器模式、外部编辑器入口和预览进程交互，保留 Astro Desktop 现有视觉风格及 Electron 安全边界。
 - 新建只支持草稿文章：标题必填，标签、单个分类和摘要可选。存放在 `src/contents/drafts/`，不写入 `draft` 字段。正文是 `src/contents/post/`，日报是 `src/contents/ai-daily/`。类型由目录决定，Frontmatter 的 `draft` 不改变列表，正文也不表示已经发布到线上。2026-10-12 纠正了此前按 `draft: true` 放在 post 目录的做法；不批量搬迁历史文件。
 - AI 日报保留真实读取与原始字段展示，不提供新增，不制作专用编辑表单。原始需求中的日报新建 / 专用表单规划已取消，后续也不单独开发一套日报编辑器。
