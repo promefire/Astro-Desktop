@@ -2,6 +2,9 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import { Muya } from '@muyajs/core'
 import '@muyajs/core/lib/core.css'
 
+// Muya's Markdown parser expects LF; leave the original source in ArticleEditor.
+const editorMarkdown = (source: string) => source.replace(/\r\n|\r/g, '\n')
+
 export interface MuyaEditorHandle {
   undo(): void
   redo(): void
@@ -44,7 +47,7 @@ export const MuyaEditor = forwardRef<MuyaEditorHandle, Props>(function MuyaEdito
       const instance = muyaRef.current
       if (!instance) return
       suppressingRef.current = true
-      instance.setContent(instance.getMarkdown() + markdown)
+      instance.setContent(instance.getMarkdown() + editorMarkdown(markdown))
       suppressingRef.current = false
       onChangeRef.current(instance.getMarkdown())
       instance.focus()
@@ -54,7 +57,7 @@ export const MuyaEditor = forwardRef<MuyaEditorHandle, Props>(function MuyaEdito
       if (!instance) return
       initialBodyRef.current = source
       suppressingRef.current = true
-      instance.setContent(source)
+      instance.setContent(editorMarkdown(source))
       suppressingRef.current = false
       onChangeRef.current(source)
     },
@@ -62,9 +65,17 @@ export const MuyaEditor = forwardRef<MuyaEditorHandle, Props>(function MuyaEdito
   }))
 
   useEffect(() => {
-    if (!hostRef.current) return
-    const muya = new Muya(hostRef.current, {
-      markdown: initialBodyRef.current,
+    const host = hostRef.current
+    if (!host) return
+    // Muya replaces its input element, then removes the replacement on destroy.
+    // Keep React's host stable across StrictMode setup/cleanup and article changes.
+    const mount = document.createElement('div')
+    mount.setAttribute('role', 'textbox')
+    mount.setAttribute('aria-label', '文章正文')
+    mount.setAttribute('aria-multiline', 'true')
+    host.appendChild(mount)
+    const muya = new Muya(mount, {
+      markdown: editorMarkdown(initialBodyRef.current),
       disableHtml: true,
       frontMatter: false,
       spellcheckEnabled: false,
@@ -87,7 +98,7 @@ export const MuyaEditor = forwardRef<MuyaEditorHandle, Props>(function MuyaEdito
     if (muyaRef.current && props.initialBody !== initialBodyRef.current) {
       initialBodyRef.current = props.initialBody
       suppressingRef.current = true
-      muyaRef.current.setContent(props.initialBody)
+      muyaRef.current.setContent(editorMarkdown(props.initialBody))
       suppressingRef.current = false
       onChangeRef.current(props.initialBody)
     }
@@ -150,5 +161,5 @@ export const MuyaEditor = forwardRef<MuyaEditorHandle, Props>(function MuyaEdito
     return () => host.removeEventListener('keydown', handleKeyDown, true)
   }, [])
 
-  return <div ref={hostRef} className="muya-editor-host" style={{ height: '100%' }} aria-label="文章编辑器" />
+  return <div ref={hostRef} className="muya-editor-host" inert={props.disabled} aria-label="文章编辑器" />
 })

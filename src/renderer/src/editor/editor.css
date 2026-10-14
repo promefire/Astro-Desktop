@@ -31,12 +31,22 @@
 .recovery-source { width: 100%; height: 210px; padding: 12px; background: var(--subtle); border: 1px solid var(--border); color: var(--text); font: 12px/1.7 Consolas, monospace; resize: vertical; }
 
 /* Muya editor host */
-.muya-editor-host { height: 100%; width: 100%; overflow: hidden; }
-.muya-editor-host .ag-paragraph { max-width: 100%; }
-.muya-editor-host .ag-edit-area { height: 100% !important; }
-.muya-editor-host .ag-editor { height: 100% !important; }
+.muya-editor-host {
+  height: 100%; width: 100%; overflow: auto;
+  --editor-color: var(--text);
+  --editor-color-80: color-mix(in srgb, var(--text) 80%, transparent);
+  --editor-color-50: var(--secondary);
+  --editor-color-30: var(--muted);
+  --editor-color-10: var(--border);
+  --editor-color-04: var(--subtle);
+  --editor-bg-color: var(--surface);
+  --theme-color: var(--accent);
+  --selection-color: var(--accent-soft);
+}
+.muya-editor-host .mu-editor { min-height: 100%; }
+.muya-editor-host .mu-container { padding: 18px 36px 100px; }
+.muya-editor-host .mu-paragraph { max-width: 100%; }
 .muya-editor-host::-webkit-scrollbar { width: 8px; height: 8px; }
 .muya-editor-host::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-.muya-editor-host .ag-notice { font-size: 12px; }
 
 @media (max-width: 1100px) { .editor-heading { padding: 12px; gap: 8px; }.editor-toolbar { padding: 8px; }.editor-save-state { display: none; } }

@@ -2,6 +2,8 @@
 
 本文件描述当前交付；最新开发顺序与需求取舍见 [ROADMAP.md](ROADMAP.md)。
 
+2026-10-14：修复 Muya 在开发模式重复挂载后正文空白的问题。正文在独立内部节点渲染，支持长文滚动、Windows 换行解析和深色主题文字；打开和切换文章不会因此改写磁盘文件。
+
 | 模块 | 当前范围 |
 | --- | --- |
 | 项目初始化 | Electron / React / TypeScript strict / Vite / Tailwind，Main / Preload / Renderer 分层 |

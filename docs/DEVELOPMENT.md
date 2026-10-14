@@ -1,5 +1,15 @@
 # 开发记录
 
+## 2026-10-14：修复 Muya 打开文章后正文空白
+
+- 在真实 Electron 开发模式中复现：Muya 构造函数会替换传入元素，destroy 会移除该元素。将 React 持有的 host 直接交给 Muya，导致 StrictMode 的 setup → cleanup → setup 后正文挂在脱离文档的节点上；生产模式也会失去稳定的事件监听容器。
+- 保留 React 外层 host，给每次 Muya 实例创建独立内部挂载节点。监听仍绑定稳定 host，清理只移除 Muya 自己的节点；暂停编辑时使用 host 的 inert 属性阻止交互。
+- 所有送入 Muya 的正文统一为 LF，避免 Windows CRLF 被解析为普通段落而失去标题等结构；此转换不在打开时写回文章。
+- 样式改用当前 Muya 的 `.mu-*` 类，恢复编辑区滚动并接入 Astro Desktop 的浅色/深色文字与背景变量。
+- 将开发模式 E2E 从欢迎页检查扩展到真实文章打开、反复切换、CRLF 标题、滚动末尾、深色文字和只读打开不改磁盘。修复前该回归在正文容器不存在处失败，修复后通过。
+
+验证：86 项单元/服务测试通过（1 项真实博客专项跳过），6 项相关 Electron E2E 通过，类型检查及生产构建通过。另对真实博客进行只读打开抽查并比较 57 个 Markdown/MDX 文件哈希，文件均未改变。
+
 ## 2026-10-13：Muya 编辑器替换 CodeMirror
 
 - 移除 CodeMirror 6、@lezer、react-markdown、remark-gfm 依赖及其 UI（源码/预览/左右分栏、分栏拖动、CodeMirror 语法高亮、查找替换面板）

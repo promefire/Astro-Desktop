@@ -1,5 +1,15 @@
 # 测试记录
 
+## 2026-10-14：Muya 正文挂载与显示回归
+
+- 修复前：新增开发模式回归无法找到 `.muya-editor-host`，复现 React StrictMode 重挂载后的空白问题。
+- 修复后：`npm test` **86 通过、1 跳过**；跳过项为未设置 `ASTRO_BLOG_TEST_PATH` 的真实博客专项。
+- `npm run build` 通过，包含 TypeScript strict 检查及 Main / Preload / Renderer 构建。
+- Electron E2E **6 / 6 通过**：`dev.spec.ts`、`drafts.spec.ts`、`editor.spec.ts`、`external-editor.spec.ts`、`images.spec.ts`、`publish.spec.ts`。本次没有宣称全套 E2E 重跑。
+- 开发回归验证正文实际存在、仅一个 Muya 实例、两篇文章反复切换不串文、CRLF 标题渲染为 h1、长文可滚到末尾、深色文字颜色及打开不修改原文件。
+- 真实 `F:\blog\Astro_Blog` 只读打开抽查无 renderer 异常；前后比较内容目录中 57 个 Markdown/MDX 文件 SHA-256，均未改变。没有保存、发布或提交原始博客。
+- 测试截图保存在 `test-results`，未纳入提交；旧测试自动生成的文档截图恢复为原版本。
+
 ## 2026-10-13：Muya 编辑器替换 CodeMirror（完整回归通过）
 
 本次结果：TypeScript strict 通过；**86 / 86** 个单元测试通过（15 个测试文件，1 个真实博客专项因未设置 `ASTRO_BLOG_TEST_PATH` 跳过）；Main / Preload / Renderer 构建通过；完整 Electron E2E **10 / 10** 通过（删除、桌面、开发、草稿、编辑器、外部编辑器、图片、预览、发布、统计）。没有修改 `F:\blog\Astro_Blog`。
