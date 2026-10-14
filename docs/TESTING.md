@@ -1,5 +1,11 @@
 # 测试记录
 
+## 2026-10-14：编辑模式显示远程图片
+
+- `npm run build` 通过。
+- 新增 Electron 测试 `renders an https image inside the editor`：拦截一篇隔离文章中的 `https` 图片并确认编辑区能画出图片，页面不再出现 “Load image failed”，磁盘上的链接保持原样。该项通过。
+- 没有改写 `F:\blog\Astro_Blog`。
+
 ## 2026-10-14：编辑模式与源码模式
 
 - `npm run typecheck` 通过，`npm run build` 通过。

@@ -66,3 +66,36 @@ test('imports a local image beside a draft, renders it, and notices an external 
     if (target.startsWith(path.resolve(tmpdir()) + path.sep) && path.basename(target).startsWith('astro-image-e2e-')) await rm(target, { recursive: true, force: true, maxRetries: 8, retryDelay: 50 })
   }
 })
+
+test('renders an https image inside the editor', async () => {
+  const webp = await sharp(png).webp().toBuffer()
+  const temporary = await mkdtemp(path.join(tmpdir(), 'astro-image-e2e-'))
+  const blog = path.join(temporary, '中文 图片博客')
+  await mkdir(path.join(blog, 'src/contents/post'), { recursive: true })
+  await mkdir(path.join(blog, 'src/contents/ai-daily'), { recursive: true })
+  await writeFile(path.join(blog, 'package.json'), JSON.stringify({ dependencies: { astro: '^5.3.0' } }))
+  await writeFile(path.join(blog, 'src/contents/post/远程图片.md'), '---\ntitle: 远程图片\npublished: 2026-01-01\n---\n![图片](https://images.example.test/photo.webp)\n')
+  const env: Record<string, string> = { ...Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)), ASTRO_DESKTOP_USER_DATA: path.join(temporary, 'profile') }
+  delete env.ELECTRON_RUN_AS_NODE
+  delete env.ELECTRON_RENDERER_URL
+  const app = await electron.launch({ args: [path.resolve('.')], env })
+  try {
+    const page = await app.firstWindow()
+    await page.route('https://images.example.test/**', route => route.fulfill({ status: 200, contentType: 'image/webp', body: webp }))
+    await app.evaluate(({ dialog }, directory) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [directory] }) }, blog)
+    await page.getByRole('button', { name: '选择博客目录', exact: true }).click()
+    await page.getByRole('button', { name: '查看文章：远程图片', exact: true }).click()
+    await expect.poll(async () => {
+      const image = page.locator('.mu-inline-image img')
+      if (await image.count() === 0) return 0
+      return image.evaluate(element => (element as HTMLImageElement).naturalWidth)
+    }).toBeGreaterThan(0)
+    await expect(page.getByText('Load image failed')).toHaveCount(0)
+    expect(await readFile(path.join(blog, 'src/contents/post/远程图片.md'), 'utf8')).toContain('https://images.example.test/photo.webp')
+  } finally {
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach(window => window.destroy())).catch(() => undefined)
+    await app.close()
+    const target = path.resolve(temporary)
+    if (target.startsWith(path.resolve(tmpdir()) + path.sep) && path.basename(target).startsWith('astro-image-e2e-')) await rm(target, { recursive: true, force: true, maxRetries: 8, retryDelay: 50 })
+  }
+})
