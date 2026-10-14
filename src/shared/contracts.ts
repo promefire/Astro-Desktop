@@ -10,7 +10,7 @@ export interface PreviewCheck { id: 'node' | 'npm' | 'script' | 'dependencies'; 
 export interface PreviewRuntimeInfo { nodePath: string; npmPath: string; nodeVersion: string; npmVersion: string; source: 'configured' | 'detected' }
 export interface PreviewState { projectPath: string | null; phase: PreviewPhase; url: string | null; message: string; log: string; exitCode: number | null; checks: PreviewCheck[]; runtime: PreviewRuntimeInfo | null }
 export interface PreviewArticleResult { kind: 'opened' | 'unresolved'; url: string | null; homepage: string | null; message: string }
-export interface AppSettings { version: 1; theme: Theme; recentProjects: RecentProject[]; lastProjectPath: string | null; previewRuntime: PreviewRuntimeSetting }
+export interface AppSettings { version: 1; theme: Theme; recentProjects: RecentProject[]; lastProjectPath: string | null; previewRuntime: PreviewRuntimeSetting; markdownHtml: boolean }
 export interface GitInfo { available: boolean; isRepository: boolean; branch: string | null; remote: string | null; error: string | null }
 export interface ProjectInfo {
   name: string; path: string; adapter: 'promefire-astro-blog'; astroVersion: string;
@@ -47,6 +47,7 @@ export type Result<T> = { ok: true; data: T } | { ok: false; error: string; code
 export interface DesktopApi {
   getSettings(): Promise<Result<AppSettings>>;
   setTheme(theme: Theme): Promise<Result<AppSettings>>;
+  setMarkdownHtml(enabled: boolean): Promise<Result<AppSettings>>;
   forgetProject(path: string): Promise<Result<AppSettings>>;
   selectProject(): Promise<Result<ProjectInfo | null>>;
   openRecentProject(path: string): Promise<Result<ProjectInfo>>;
@@ -88,7 +89,7 @@ export interface DesktopApi {
   openProjectFolder(): Promise<Result<void>>;
 }
 export const IPC = {
-  getSettings: 'settings:get', setTheme: 'settings:theme', forgetProject: 'settings:forget-project',
+  getSettings: 'settings:get', setTheme: 'settings:theme', setMarkdownHtml: 'settings:markdown-html', forgetProject: 'settings:forget-project',
   selectProject: 'project:select', openRecentProject: 'project:open-recent', getProject: 'project:get',
   refreshProject: 'project:refresh', listArticles: 'content:list', readArticle: 'content:read',
   revealArticle: 'content:reveal', openProjectFolder: 'project:reveal',

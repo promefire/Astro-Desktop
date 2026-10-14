@@ -6,6 +6,7 @@ import type { DesktopApi, PreviewState } from '../shared/contracts'
 const api: DesktopApi = {
   getSettings: () => ipcRenderer.invoke(IPC.getSettings),
   setTheme: (theme) => ipcRenderer.invoke(IPC.setTheme, theme),
+  setMarkdownHtml: (enabled) => ipcRenderer.invoke(IPC.setMarkdownHtml, enabled),
   forgetProject: (path) => ipcRenderer.invoke(IPC.forgetProject, path),
   selectProject: () => ipcRenderer.invoke(IPC.selectProject),
   openRecentProject: (path) => ipcRenderer.invoke(IPC.openRecentProject, path),

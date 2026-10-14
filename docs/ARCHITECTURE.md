@@ -19,7 +19,7 @@ React Renderer 只调用 `window.astroDesktop`。Preload 使用 `contextBridge` 
 
 ## 配置与副作用
 
-客户端设置写入自身 `userData/settings.json`，使用原子替换与串行化更新。用户显式创建草稿时写入 `src/contents/drafts` 下一个文件，显式保存时替换对应文章，显式确认后才删除单篇文章；不修改 Git index，不 fetch / commit / push。删除只 `unlink` 已核对的普通文件，拒绝链接、硬链接和目录，也不进入回收站。最近项目最多十个，记录路径、名称和上次打开时间。配置损坏应保留并提示，不覆盖为默认值。
+客户端设置写入自身 `userData/settings.json`，使用原子替换与串行化更新。`markdownHtml` 只控制编辑模式是否渲染 HTML，默认关闭；缺少该字段的旧文件仍可读取。用户显式创建草稿时写入 `src/contents/drafts` 下一个文件，显式保存时替换对应文章，显式确认后才删除单篇文章；不修改 Git index，不 fetch / commit / push。删除只 `unlink` 已核对的普通文件，拒绝链接、硬链接和目录，也不进入回收站。最近项目最多十个，记录路径、名称和上次打开时间。配置损坏应保留并提示，不覆盖为默认值。
 
 `content:create-draft` 参数限于 projectPath、title、tags、category、description，不接受目标路径、source 或内容类型。服务校验项目是否仍活动，复核真实目录，拒绝目录链接，生成 Windows 文件名。日期采用本地时间的 YAML 时间戳，其他文本使用兼容 YAML 的 JSON 引号，防止 `on` / `true` / 日期形标签被解释成其他类型。项目切换、新建、保存和编辑恢复共用队列，过期项目请求被拒绝。
 

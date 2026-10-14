@@ -19,7 +19,7 @@ import { StatsView } from './components/StatsView'
 import { ArticleListRow } from './components/ArticleListRow'
 import { Modal } from './components/Modal'
 
-const EMPTY_SETTINGS: AppSettings = { version: 1, theme: 'system', recentProjects: [], lastProjectPath: null, previewRuntime: { nodePath: null, npmPath: null } }
+const EMPTY_SETTINGS: AppSettings = { version: 1, theme: 'system', recentProjects: [], lastProjectPath: null, previewRuntime: { nodePath: null, npmPath: null }, markdownHtml: false }
 const EMPTY_INDEX: ContentIndex = { articles: [], issues: [], scannedAt: '' }
 const PAGE_SIZE = 12
 type SortOrder = 'published-desc' | 'published-asc' | 'modified-desc' | 'title'
@@ -56,6 +56,7 @@ function App() {
   const [initializing, setInitializing] = useState(true)
   const [busy, setBusy] = useState(false)
   const [themeBusy, setThemeBusy] = useState(false)
+  const [markdownBusy, setMarkdownBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [createdNotice, setCreatedNotice] = useState<string | null>(null)
@@ -306,6 +307,13 @@ function App() {
     finally { setThemeBusy(false) }
   }
 
+  const changeMarkdownHtml = async (enabled: boolean) => {
+    if (!api || markdownBusy) return
+    setMarkdownBusy(true)
+    try { setSettings(await unwrap(api.setMarkdownHtml(enabled))) } catch (cause) { setError(errorMessage(cause)) }
+    finally { setMarkdownBusy(false) }
+  }
+
   const forgetProject = async (path: string) => {
     if (!api || busyRef.current) return
     try { setSettings(await unwrap(api.forgetProject(path))) } catch (cause) { setError(errorMessage(cause)) }
@@ -387,7 +395,7 @@ function App() {
 
       {!api ? <main className="welcome-content"><EmptyState icon={<Monitor size={32} />} title="请在 Astro Desktop 中打开" description="本地文件系统与目录选择需要 Electron 桌面环境。请在项目目录运行 npm run dev 启动桌面应用。" /></main>
         : initializing ? <main className="welcome-content"><EmptyState icon={<LoaderCircle size={28} className="spin" />} title="正在打开工作空间" description="读取本地设置与文章索引…" /></main>
-          : isSettings ? <SettingsView api={api} project={project} settings={settings} themeBusy={themeBusy} onTheme={changeTheme} onOpenFolder={() => void runAction(desktop => desktop.openProjectFolder())} issues={index.issues} onOpenProject={() => void openProject()} busy={busy} />
+          : isSettings ? <SettingsView api={api} project={project} settings={settings} themeBusy={themeBusy} markdownBusy={markdownBusy} onTheme={changeTheme} onMarkdownHtml={changeMarkdownHtml} onOpenFolder={() => void runAction(desktop => desktop.openProjectFolder())} issues={index.issues} onOpenProject={() => void openProject()} busy={busy} />
             : showWelcome ? <WelcomeView settings={settings} project={project} busy={busy} onOpen={() => void openProject()} onRecent={path => void openProject(path)} onForget={path => void forgetProject(path)} onContinue={() => navigate('/library/all')} />
               : isStats ? <StatsView projectName={project.name} projectPath={project.path} scannedAt={index.scannedAt} stats={stats} issues={index.issues} busy={busy} onOpen={openLibrary} />
               : <main className="library-layout">
@@ -408,7 +416,7 @@ function App() {
                   </div>
                   <div className="pagination"><span>{filtered.length ? `${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, filtered.length)}` : '0'} / {filtered.length} 篇</span><div><Button size="icon" variant="ghost" aria-label="上一页" disabled={currentPage <= 1 || busy} onClick={() => setPage(currentPage - 1)}><ChevronLeft size={16} /></Button><span>{currentPage} / {totalPages}</span><Button size="icon" variant="ghost" aria-label="下一页" disabled={currentPage >= totalPages || busy} onClick={() => setPage(currentPage + 1)}><ChevronRight size={16} /></Button></div></div>
                 </section>
-                {selectedPath && (!document || busy || documentLoading ? <section className="editor-loading"><Button onClick={() => selectArticle(null)}><ChevronLeft size={16} />返回列表</Button><EmptyState icon={<FileText size={25} />} title={documentError ? '无法打开文章' : '正在读取文章'} description={documentError ?? '加载原始源码与恢复记录…'} /></section> : <ArticleEditor key={`${project.path}:${selectedPath}`} ref={editor} api={api} projectPath={project.path} document={document} onDirtyChange={reportDirty} onRecoveryChange={() => void loadRecoveries()} onSaved={saved => { setDocument(saved); setIndex(current => ({ ...current, articles: current.articles.map(article => article.relativePath === saved.article.relativePath ? saved.article : article) })) }} onPublished={published => { setSelectedPath(published.article.relativePath); void unwrap(api.listArticles()).then(next => setIndex(next)).catch(cause => setError(errorMessage(cause))); void loadRecoveries() }} onBack={() => requestLeave(() => selectArticle(null))} />)}
+                {selectedPath && (!document || busy || documentLoading ? <section className="editor-loading"><Button onClick={() => selectArticle(null)}><ChevronLeft size={16} />返回列表</Button><EmptyState icon={<FileText size={25} />} title={documentError ? '无法打开文章' : '正在读取文章'} description={documentError ?? '加载原始源码与恢复记录…'} /></section> : <ArticleEditor key={`${project.path}:${selectedPath}`} ref={editor} api={api} projectPath={project.path} document={document} htmlEnabled={settings.markdownHtml} onDirtyChange={reportDirty} onRecoveryChange={() => void loadRecoveries()} onSaved={saved => { setDocument(saved); setIndex(current => ({ ...current, articles: current.articles.map(article => article.relativePath === saved.article.relativePath ? saved.article : article) })) }} onPublished={published => { setSelectedPath(published.article.relativePath); void unwrap(api.listArticles()).then(next => setIndex(next)).catch(cause => setError(errorMessage(cause))); void loadRecoveries() }} onBack={() => requestLeave(() => selectArticle(null))} />)}
                 {inspectorOpen && <ArticleInspector article={selectedArticle} document={document} loading={documentLoading || busy} error={documentError} onReveal={() => selectedPath && void runAction(desktop => desktop.revealArticle(selectedPath))} />}
               </main>}
 
@@ -450,9 +458,10 @@ function ArticleInspector({ article, document, loading, error, onReveal }: { art
 
 function Property({ label, children }: { label: string; children: ReactNode }) { return <div><dt>{label}</dt><dd>{children}</dd></div> }
 
-function SettingsView({ api, project, settings, themeBusy, onTheme, onOpenFolder, issues, onOpenProject, busy }: { api: DesktopApi | undefined; project: ProjectInfo | null; settings: AppSettings; themeBusy: boolean; onTheme: (theme: Theme) => Promise<void>; onOpenFolder: () => void; issues: ContentIndex['issues']; onOpenProject: () => void; busy: boolean }) {
+function SettingsView({ api, project, settings, themeBusy, markdownBusy, onTheme, onMarkdownHtml, onOpenFolder, issues, onOpenProject, busy }: { api: DesktopApi | undefined; project: ProjectInfo | null; settings: AppSettings; themeBusy: boolean; markdownBusy: boolean; onTheme: (theme: Theme) => Promise<void>; onMarkdownHtml: (enabled: boolean) => Promise<void>; onOpenFolder: () => void; issues: ContentIndex['issues']; onOpenProject: () => void; busy: boolean }) {
   return <main className="settings-content"><div className="settings-inner"><div className="heading-overline">工作空间</div><h1>项目设置</h1><p className="settings-intro">当前项目的信息与桌面偏好。</p>
     <section className="settings-section"><div className="settings-section-title"><div><h2>外观</h2><p>为你的工作环境选择合适的界面。</p></div></div><div className="theme-options">{([{ value: 'light', label: '浅色', icon: Sun }, { value: 'dark', label: '深色', icon: Moon }, { value: 'system', label: '跟随系统', icon: Monitor }] as const).map(({ value, label, icon: Icon }) => <button key={value} className={cn('theme-option', settings.theme === value && 'is-active')} aria-pressed={settings.theme === value} disabled={themeBusy} onClick={() => void onTheme(value)}><Icon size={19} /><span>{label}</span>{settings.theme === value && <Check size={15} />}</button>)}</div></section>
+    <section className="settings-section" aria-label="Markdown"><div className="settings-section-title"><div><h2>Markdown</h2><p>只影响编辑模式里的 HTML 显示，不改文章文件。</p></div></div><div className="setting-switch-row"><div><strong>启用 HTML 支持</strong><p>打开后，编辑模式显示消毒后的 HTML 预览，不执行脚本，也不应用 style。关闭后只显示原始标签。源码模式和 MDX 不受影响。</p></div><button type="button" role="switch" className={cn('setting-switch', settings.markdownHtml && 'is-on')} aria-checked={settings.markdownHtml} aria-label="启用 HTML 支持" disabled={!api || markdownBusy} onClick={() => void onMarkdownHtml(!settings.markdownHtml)}><span /></button></div></section>
     {api && <ExternalEditorSettings api={api} />}
     {api && <ImageStorageSettings api={api} />}
     <section className="settings-section"><div className="settings-section-title"><div><h2>博客项目</h2><p>读取现有博客文件与配置，不执行项目脚本。</p></div>{project && <Button size="small" onClick={onOpenFolder}><FolderOpen size={15} />打开文件夹</Button>}</div>{project ? <dl className="settings-facts"><Property label="项目名称">{project.name}</Property><Property label="本地目录"><code>{project.path}</code></Property><Property label="适配器">promefire / Astro_Blog</Property><Property label="Astro 版本">{project.astroVersion}</Property><Property label="包管理器">{project.packageManager ?? '未声明'}</Property><Property label="正文"><code>{project.contentDirectories.post}</code></Property><Property label="草稿"><code>{project.contentDirectories.draft}</code></Property><Property label="AI 日报"><code>{project.contentDirectories['ai-daily']}</code></Property></dl> : <div className="settings-no-project"><FolderOpen size={25} /><p>选择博客目录后查看项目配置。</p><Button onClick={onOpenProject} disabled={busy}>打开项目</Button></div>}</section>

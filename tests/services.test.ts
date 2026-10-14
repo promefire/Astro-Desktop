@@ -48,9 +48,21 @@ describe('project connection and persisted settings', () => {
     expect(await restarted.projects.getCurrent()).toBe(null)
     expect(await restarted.settings.get()).toMatchObject({ theme: 'dark', lastProjectPath: project, recentProjects: [{ path: project }] })
     expect((await restarted.projects.openRecent(project)).path).toBe(project)
+    expect((await restarted.settings.get()).markdownHtml).toBe(false)
+    await restarted.settings.setMarkdownHtml(true)
+    expect((await createServices(settingsFile).settings.get()).markdownHtml).toBe(true)
     await restarted.settings.forgetProject(project)
     expect((await restarted.settings.get()).lastProjectPath).toBe(null)
     await expect(restarted.projects.openRecent(project)).rejects.toMatchObject({ code: 'PROJECT_NOT_AUTHORIZED' })
+  })
+
+  it('treats a missing html switch as off and does not rewrite the old file', async () => {
+    await mkdir(path.dirname(settingsFile), { recursive: true })
+    const legacy = JSON.stringify({ version: 1, theme: 'light', recentProjects: [], lastProjectPath: null })
+    await writeFile(settingsFile, legacy)
+    const services = createServices(settingsFile)
+    expect((await services.settings.get()).markdownHtml).toBe(false)
+    expect(await readFile(settingsFile, 'utf8')).toBe(legacy)
   })
 
   it('rejects unknown recent paths without opening them', async () => {

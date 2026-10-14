@@ -1,5 +1,12 @@
 # 测试记录
 
+## 2026-10-14：Markdown HTML 支持开关
+
+- `npm run build` 通过。
+- `npm test`：**88 通过、1 跳过**。跳过项仍是未设置 `ASTRO_BLOG_TEST_PATH` 的真实博客专项。设置测试确认默认关闭、重启后保持打开，以及旧设置文件缺少 `markdownHtml` 时按关闭读取且不重写文件。
+- `npx playwright test tests/e2e/markdown-html.spec.ts` 通过。隔离文章默认带 `mu-disable-html-render`；打开「启用 HTML 支持」后，光标离开 HTML 块时预览包含「彩色块」；再关闭后恢复原始标签。文章文件字节不变。
+- 没有改写 `F:\blog\Astro_Blog`。
+
 ## 2026-10-14：编辑模式显示远程图片
 
 - `npm run build` 通过。

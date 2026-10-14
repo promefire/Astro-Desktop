@@ -63,6 +63,10 @@ function registerHandlers(): void {
     if (theme !== 'light' && theme !== 'dark' && theme !== 'system') throw new Error('无效的外观设置。')
     return services.settings.setTheme(theme as Theme)
   })
+  handle(IPC.setMarkdownHtml, async (enabled) => {
+    if (typeof enabled !== 'boolean') throw new Error('无效的 Markdown 设置。')
+    return services.settings.setMarkdownHtml(enabled)
+  })
   handle(IPC.forgetProject, (path) => services.settings.forgetProject(stringArgument(path)))
   handle(IPC.selectProject, async () => {
     if (!mainWindow) throw new Error('主窗口不可用。')

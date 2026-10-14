@@ -11,7 +11,7 @@ import '../editor/editor.css'
 
 export interface ArticleEditorHandle { save(): Promise<boolean>; discard(): Promise<boolean>; isDirty(): boolean; isBusy(): boolean }
 interface Props {
-  document: ArticleDocument; projectPath: string; api: DesktopApi;
+  document: ArticleDocument; projectPath: string; api: DesktopApi; htmlEnabled: boolean;
   onSaved(document: ArticleDocument): void; onPublished(document: ArticleDocument): void; onBack(): void;
   onDirtyChange(dirty: boolean): void; onRecoveryChange(): void;
 }
@@ -26,7 +26,7 @@ const message = (error: unknown) => error instanceof Error ? error.message : '�
 type EditorMode = 'wysiwyg' | 'source'
 
 export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEditor({
-  document, projectPath, api, onSaved, onPublished, onBack, onDirtyChange, onRecoveryChange
+  document, projectPath, api, htmlEnabled, onSaved, onPublished, onBack, onDirtyChange, onRecoveryChange
 }, ref) {
   const muya = useRef<MuyaEditorHandle>(null)
   const sourceEditor = useRef<SourceEditorHandle>(null)
@@ -395,7 +395,7 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
     {isMdx && <p className="editor-mdx-note" role="note">MDX 包含可执行语法，仅支持源码编辑</p>}
     {recovery && <div className="recovery-prompt"><span>发现 {new Date(recovery.updatedAt).toLocaleString('zh-CN')} 的未保存内容。{recovery.baseRevision !== base.current.revision && '磁盘版本已变化，恢复后保存会先检查冲突。'}</span><Button size="small" onClick={restoreRecovery}>恢复到编辑器</Button><Button size="small" variant="ghost" onClick={() => void discard()}>放弃恢复记录</Button></div>}
     <div className="editor-panes">
-      {!isMdx && <div id="editor-wysiwyg-panel" className="editor-source-pane" role="tabpanel" aria-labelledby="editor-tab-wysiwyg" hidden={mode !== 'wysiwyg'} inert={mode !== 'wysiwyg'}><MuyaEditor ref={muya} initialBody={initialParts.body} disabled={working || loadingRecovery || !!recovery || externalSession || switching || mode !== 'wysiwyg'} onChange={change} onSave={() => void save()} onImages={files => void insertImages(files)} onMarkdownPaste={pasteMarkdown} /></div>}
+      {!isMdx && <div id="editor-wysiwyg-panel" className="editor-source-pane" role="tabpanel" aria-labelledby="editor-tab-wysiwyg" hidden={mode !== 'wysiwyg'} inert={mode !== 'wysiwyg'}><MuyaEditor ref={muya} initialBody={initialParts.body} htmlEnabled={htmlEnabled} disabled={working || loadingRecovery || !!recovery || externalSession || switching || mode !== 'wysiwyg'} onChange={change} onSave={() => void save()} onImages={files => void insertImages(files)} onMarkdownPaste={pasteMarkdown} /></div>}
       <div id="editor-source-panel" className="editor-source-pane" role="tabpanel" aria-labelledby="editor-tab-source" hidden={mode !== 'source'} inert={mode !== 'source'}><p className="source-pane-label" id="markdown-source-label">Markdown 正文源码</p><SourceEditor ref={sourceEditor} initialBody={initialParts.body} visible={mode === 'source'} disabled={working || loadingRecovery || !!recovery || externalSession || switching || mode !== 'source'} onChange={change} onSave={() => void save()} onImages={files => void insertImages(files)} onMarkdownPaste={pasteMarkdown} /></div>
     </div>
     </div>

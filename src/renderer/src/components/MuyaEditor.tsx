@@ -17,6 +17,7 @@ export interface MuyaEditorHandle {
 
 interface Props {
   initialBody: string
+  htmlEnabled: boolean
   disabled: boolean
   onChange(body: string): void
   onSave(): void
@@ -29,6 +30,7 @@ export const MuyaEditor = forwardRef<MuyaEditorHandle, Props>(function MuyaEdito
   const muyaRef = useRef<Muya | null>(null)
 
   const initialBodyRef = useRef(props.initialBody)
+  const htmlEnabledRef = useRef(props.htmlEnabled)
   const disabledRef = useRef(props.disabled)
   const onChangeRef = useRef(props.onChange)
   const onSaveRef = useRef(props.onSave)
@@ -86,7 +88,7 @@ export const MuyaEditor = forwardRef<MuyaEditorHandle, Props>(function MuyaEdito
     host.appendChild(mount)
     const muya = new Muya(mount, {
       markdown: editorMarkdown(initialBodyRef.current),
-      disableHtml: true,
+      disableHtml: !htmlEnabledRef.current,
       frontMatter: false,
       spellcheckEnabled: false,
       focusMode: false,
@@ -103,6 +105,17 @@ export const MuyaEditor = forwardRef<MuyaEditorHandle, Props>(function MuyaEdito
     muyaRef.current = muya
     return () => { muya.destroy(); muyaRef.current = null }
   }, [])
+
+  useEffect(() => {
+    const instance = muyaRef.current
+    if (!instance || htmlEnabledRef.current === props.htmlEnabled) return
+    htmlEnabledRef.current = props.htmlEnabled
+    ;(instance as unknown as { options: { disableHtml: boolean } }).options.disableHtml = !props.htmlEnabled
+    const token = ++suppressToken.current
+    suppressingRef.current = true
+    instance.setContent(instance.getMarkdown())
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (suppressToken.current === token) suppressingRef.current = false }))
+  }, [props.htmlEnabled])
 
   useEffect(() => {
     if (muyaRef.current && props.initialBody !== initialBodyRef.current) {

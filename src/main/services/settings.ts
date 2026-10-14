@@ -5,7 +5,8 @@ import type { AppSettings, PreviewRuntimeSetting, Theme } from '../../shared/con
 import { ServiceError, errorMessage, isMissing } from './errors'
 import { readBounded } from './paths'
 
-function defaults(): AppSettings { return { version: 1, theme: 'system', recentProjects: [], lastProjectPath: null, previewRuntime: { nodePath: null, npmPath: null } } }
+function defaults(): AppSettings { return { version: 1, theme: 'system', recentProjects: [], lastProjectPath: null, previewRuntime: { nodePath: null, npmPath: null }, markdownHtml: false } }
+function markdownHtmlSetting(value: unknown): boolean { return value === true }
 function runtimeSetting(value: unknown): PreviewRuntimeSetting {
   if (value === undefined || value === null) return { nodePath: null, npmPath: null }
   if (typeof value !== 'object') return { nodePath: null, npmPath: null }
@@ -28,7 +29,7 @@ function validate(value: unknown): AppSettings {
     }
   }
   if (v.lastProjectPath !== null && !v.recentProjects.some((p) => p.path === v.lastProjectPath)) throw new Error('最近项目与恢复记录不一致')
-  return { version: 1, theme: v.theme, recentProjects: v.recentProjects.map((p) => ({ path: p.path, name: p.name, lastOpened: p.lastOpened })), lastProjectPath: v.lastProjectPath, previewRuntime: runtimeSetting((v as { previewRuntime?: unknown }).previewRuntime) }
+  return { version: 1, theme: v.theme, recentProjects: v.recentProjects.map((p) => ({ path: p.path, name: p.name, lastOpened: p.lastOpened })), lastProjectPath: v.lastProjectPath, previewRuntime: runtimeSetting((v as { previewRuntime?: unknown }).previewRuntime), markdownHtml: markdownHtmlSetting((v as { markdownHtml?: unknown }).markdownHtml) }
 }
 
 export function createSettingsService(settingsFile: string) {
@@ -68,6 +69,10 @@ export function createSettingsService(settingsFile: string) {
     setTheme: (theme: Theme) => serial(async () => {
       if (!['light', 'dark', 'system'].includes(theme)) throw new ServiceError('INVALID_THEME', '不支持的主题。')
       return persist({ ...await load(), theme })
+    }),
+    setMarkdownHtml: (enabled: boolean) => serial(async () => {
+      if (typeof enabled !== 'boolean') throw new ServiceError('INVALID_SETTING', 'HTML 支持必须是开关值。')
+      return persist({ ...await load(), markdownHtml: enabled })
     }),
     forgetProject: (projectPath: string) => serial(async () => {
       const settings = await load()

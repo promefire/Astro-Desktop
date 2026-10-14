@@ -73,7 +73,7 @@ export function createServices(settingsFilePath: string) {
     })
   }
   return {
-    settings: { get: settings.get, setTheme: settings.setTheme, forgetProject: settings.forgetProject },
+    settings: { get: settings.get, setTheme: settings.setTheme, setMarkdownHtml: settings.setMarkdownHtml, forgetProject: settings.forgetProject },
     projects: {
       select: (directory: string) => serialProject(() => activate(directory)),
       openRecent: (directory: string) => serialProject(async () => {
