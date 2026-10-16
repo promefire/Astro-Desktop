@@ -155,9 +155,7 @@ option { background: var(--surface); color: var(--text); }
 .article-title svg { display: inline; vertical-align: -2px; margin-left: 5px; }
 .issue-mark { color: var(--warning-text); }
 .article-subtitle { display: flex; gap: 7px; font-size: 9px; color: var(--muted); margin-top: 6px; min-width: 0; }
-.article-subtitle > span:first-child { flex-shrink: 0; }
-.article-tags { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.subtitle-separator { opacity: .6; }
+.article-detail { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .date-cell, .category-cell { font-size: 10px; color: var(--secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .date-cell { font-variant-numeric: tabular-nums; }
 .article-row.is-selected .article-title { color: var(--accent-text); }
