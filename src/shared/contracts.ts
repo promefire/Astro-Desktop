@@ -15,7 +15,9 @@ export interface GitInfo { available: boolean; isRepository: boolean; branch: st
 export interface ProjectInfo {
   name: string; path: string; adapter: 'promefire-astro-blog'; astroVersion: string;
   packageManager: string | null; scripts: Record<string, string>; git: GitInfo;
-  contentDirectories: Record<ContentKind, string>; warnings: string[];
+  contentDirectories: Record<ContentKind, string>;
+  /** Which content directories actually exist on disk; the sidebar only renders those sections. */
+  contentPresence: Record<ContentKind, boolean>; warnings: string[];
 }
 export interface Article {
   id: string; relativePath: string; kind: ContentKind; extension: '.md' | '.mdx';

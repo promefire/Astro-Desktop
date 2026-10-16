@@ -1,5 +1,18 @@
 # 测试记录
 
+## 2026-10-16：侧边栏入口跟随内容目录
+
+按用户要求只跑新增功能的用例，不执行完整测试套件。
+
+- `npm run typecheck` 通过，`npm run build` 通过。
+- `npx playwright test tests/e2e/sidebar-sections.spec.ts`：1 项通过。用例在真实 Electron 里准备两个临时博客并在同一个应用实例中切换：
+  - 含 post / drafts / ai-daily 三个目录的项目：「全部内容」「正文」「草稿」「AI 日报」四个入口都渲染。
+  - 只有 post 与 ai-daily（没有 `src/contents/drafts`）的项目：草稿入口的链接数量为 0，另外三个入口照常。
+  - 切回三目录项目后草稿入口重新出现，说明渲染跟随当前项目的目录而不是启动时算一次。
+  - 全程没有未捕获的页面错误。
+- 没有运行其他既有用例。已确认它们不会受这次改动影响：`tests/services.test.ts` 对项目对象只用 `toMatchObject`（新增字段不影响），没有用例断言 `contentDirectories`；缺失目录仍然按原样报 `INVALID_PROJECT`。
+- 没有改写 `F:\blog\Astro_Blog`。
+
 ## 2026-10-16：收起手柄默认隐藏，指针靠近才出现
 
 按用户要求只跑新增功能的用例，不执行完整测试套件。

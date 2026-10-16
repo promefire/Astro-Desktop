@@ -369,10 +369,14 @@ function App() {
 
   const busyAll = busy || initializing
   const showWelcome = !project || isProjects
+  // 侧边栏按内容目录渲染：post 是正文、drafts 是草稿、ai-daily 是 AI 日报，
+  // 目录不存在就不显示对应入口。没有打开项目时保留全部入口，还没有目录可以判断。
   const navItems = [
-    { view: 'all' as const, icon: Layers3 }, { view: 'posts' as const, icon: FileText },
-    { view: 'drafts' as const, icon: File }, { view: 'daily' as const, icon: Sparkles },
-  ]
+    { view: 'all' as const, icon: Layers3, kind: null },
+    { view: 'posts' as const, icon: FileText, kind: 'post' as const },
+    { view: 'drafts' as const, icon: File, kind: 'draft' as const },
+    { view: 'daily' as const, icon: Sparkles, kind: 'ai-daily' as const },
+  ].filter(item => !item.kind || !project || project.contentPresence[item.kind])
 
   return <div className="app-shell">
     <aside className={cn('sidebar', !sidebarOpen && 'is-collapsed')} id="app-sidebar" aria-label="主导航">

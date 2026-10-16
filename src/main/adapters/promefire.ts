@@ -28,14 +28,17 @@ export async function inspectProject(directory: string): Promise<ProjectInfo> {
   if (!pkg || typeof pkg !== 'object' || Array.isArray(pkg)) throw new ServiceError('INVALID_PROJECT', 'package.json 格式无效。')
   const dependencies = { ...(typeof pkg.devDependencies === 'object' ? pkg.devDependencies : {}), ...(typeof pkg.dependencies === 'object' ? pkg.dependencies : {}) } as Record<string, unknown>
   if (typeof dependencies.astro !== 'string' || !dependencies.astro.trim()) throw new ServiceError('INVALID_PROJECT', 'package.json 未声明 astro 依赖。')
-  for (const relative of [CONTENT_DIRECTORIES.post, CONTENT_DIRECTORIES['ai-daily']]) {
-    try { await ensureDirectory(root, relative) } catch (error) {
+  // Presence decides whether the sidebar offers a section at all; a missing 草稿 directory only
+  // removes that entry, while 正文 and AI 日报 stay required for this adapter.
+  const contentPresence: Record<ContentKind, boolean> = { post: false, draft: false, 'ai-daily': false }
+  for (const kind of ['post', 'ai-daily'] as const) {
+    try { await ensureDirectory(root, CONTENT_DIRECTORIES[kind]); contentPresence[kind] = true } catch (error) {
       if (error instanceof ServiceError && error.code === 'PATH_OUTSIDE_PROJECT') throw error
-      throw new ServiceError('INVALID_PROJECT', `缺少内容目录 ${relative}；本版本适配 promefire/Astro_Blog 的目录结构。`)
+      throw new ServiceError('INVALID_PROJECT', `缺少内容目录 ${CONTENT_DIRECTORIES[kind]}；本版本适配 promefire/Astro_Blog 的目录结构。`)
     }
   }
   let draftsWarning: string | null = null
-  try { await ensureDirectory(root, CONTENT_DIRECTORIES.draft) } catch (error) {
+  try { await ensureDirectory(root, CONTENT_DIRECTORIES.draft); contentPresence.draft = true } catch (error) {
     if (error instanceof ServiceError && error.code === 'PATH_OUTSIDE_PROJECT') throw error
     draftsWarning = error instanceof ServiceError ? `${CONTENT_DIRECTORIES.draft} 不是可用目录，草稿无法读取。` : isMissing(error) ? MISSING_DRAFTS_MESSAGE : '无法确认草稿目录，本次没有读取草稿。'
   }
@@ -47,7 +50,8 @@ export async function inspectProject(directory: string): Promise<ProjectInfo> {
   return {
     name: path.basename(root), path: root, adapter: 'promefire-astro-blog', astroVersion: dependencies.astro,
     packageManager: typeof pkg.packageManager === 'string' ? pkg.packageManager : null,
-    scripts, git: git.info, contentDirectories: { ...CONTENT_DIRECTORIES }, warnings: [git.info.error, draftsWarning].filter((item): item is string => !!item),
+    scripts, git: git.info, contentDirectories: { ...CONTENT_DIRECTORIES }, contentPresence,
+    warnings: [git.info.error, draftsWarning].filter((item): item is string => !!item),
   }
 }
 
