@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { NavLink, useBlocker, useLocation, useNavigate } from 'react-router-dom'
 import {
   AlertCircle, ArrowDownUp, ArrowUpRight, BookOpen, ChartColumn, Check, ChevronLeft, ChevronRight,
-  CircleHelp, Clock3, File, FileText, Folder, FolderOpen, GitBranch, Globe, Layers3,
+  CircleHelp, Clock3, CloudUpload, File, FileText, Folder, FolderOpen, GitBranch, Globe, Layers3,
   LoaderCircle, Monitor, Moon, RefreshCw, Search,
   Settings2, Sparkles, Sun, Tag, Trash2, X, Plus,
 } from 'lucide-react'
@@ -16,6 +16,7 @@ import { ExternalEditorSettings } from './components/ExternalEditorSettings'
 import { ImageStorageSettings } from './components/ImageStorageSettings'
 import { PreviewPanel } from './components/PreviewPanel'
 import { StatsView } from './components/StatsView'
+import { SyncDialog } from './components/SyncDialog'
 import { ArticleListRow } from './components/ArticleListRow'
 import { Modal } from './components/Modal'
 
@@ -29,7 +30,7 @@ function kindLabel(article: Article): string {
   if (article.kind === 'draft') return '草稿'
   return '正文'
 }
-const statusLabels: Record<FileStatus, string> = { clean: '无改动', modified: '已修改', added: '已暂存新增', untracked: '未跟踪', conflict: '存在冲突', ignored: '已忽略', unknown: '状态未知' }
+const statusLabels: Record<FileStatus, string> = { clean: '无改动', modified: '已修改', added: '已暂存新增', deleted: '已删除', untracked: '未跟踪', conflict: '存在冲突', ignored: '已忽略', unknown: '状态未知' }
 
 function errorMessage(error: unknown): string { return error instanceof Error ? error.message : '操作未完成，请重试。' }
 async function unwrap<T>(request: Promise<Result<T>>): Promise<T> {
@@ -73,6 +74,7 @@ function App() {
   const [recoveries, setRecoveries] = useState<RecoveryIndex>({ entries: [], issues: [] })
   const [recoveriesOpen, setRecoveriesOpen] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [syncOpen, setSyncOpen] = useState(false)
   const [previewPhase, setPreviewPhase] = useState<PreviewPhase>('idle')
   const [recoveryRefresh, setRecoveryRefresh] = useState(0)
   const blocker = useBlocker(() => editorDirty.current)
@@ -401,7 +403,7 @@ function App() {
     <div className="workspace">
       <header className="topbar">
         <div className="project-context"><FolderOpen size={16} /><span title={project?.path}>{project?.name ?? '工作空间'}</span>{project && <><span className="context-divider">/</span><span className="branch" title={project.git.error ?? '本地 Git 分支'}><GitBranch size={14} />{project.git.branch ?? (project.git.isRepository ? '游离 HEAD' : '非 Git 仓库')}</span></>}</div>
-        <div className="topbar-actions">{project && <>{(recoveries.entries.length > 0 || recoveries.issues.length > 0) && <Button size="small" onClick={() => setRecoveriesOpen(true)}>恢复记录 ({recoveries.entries.length})</Button>}<Button size="small" variant={previewPhase === 'running' ? 'primary' : 'secondary'} onClick={() => setPreviewOpen(true)}><Globe size={15} />{previewPhase === 'running' ? '预览运行中' : '本地预览'}</Button><Button size="small" variant="ghost" disabled={busyAll} onClick={() => requestLeave(() => void refresh())} aria-label="刷新文章"><RefreshCw size={15} className={busy ? 'spin' : ''} /><span>刷新</span></Button></>}<Button size="small" disabled={!api || busyAll} onClick={() => requestLeave(() => void openProject())}><FolderOpen size={15} />打开项目</Button></div>
+        <div className="topbar-actions">{project && <>{(recoveries.entries.length > 0 || recoveries.issues.length > 0) && <Button size="small" onClick={() => setRecoveriesOpen(true)}>恢复记录 ({recoveries.entries.length})</Button>}<Button size="small" variant={previewPhase === 'running' ? 'primary' : 'secondary'} onClick={() => setPreviewOpen(true)}><Globe size={15} />{previewPhase === 'running' ? '预览运行中' : '本地预览'}</Button><Button size="small" disabled={busyAll || !project.git.isRepository} title={project.git.isRepository ? '先拉取远程，确认文件列表后提交并推送' : project.git.error ?? '当前项目不是 Git 仓库'} onClick={() => requestLeave(() => setSyncOpen(true))}><CloudUpload size={15} /><span>推送</span></Button><Button size="small" variant="ghost" disabled={busyAll} onClick={() => requestLeave(() => void refresh())} aria-label="刷新文章"><RefreshCw size={15} className={busy ? 'spin' : ''} /><span>刷新</span></Button></>}<Button size="small" disabled={!api || busyAll} onClick={() => requestLeave(() => void openProject())}><FolderOpen size={15} />打开项目</Button></div>
       </header>
 
       {error && <div className="error-banner" role="alert"><AlertCircle size={17} /><span>{error}</span><Button size="icon" variant="ghost" aria-label="关闭错误提示" onClick={() => setError(null)}><X size={15} /></Button></div>}
@@ -441,6 +443,7 @@ function App() {
     {leaveOpen && <Modal title="文章有未保存的修改" onCancel={cancelLeave}><p>保存后继续，或明确放弃本次修改。保存失败时会留在编辑器。</p><div className="dialog-actions"><Button disabled={leaving} onClick={cancelLeave}>取消</Button><Button disabled={leaving} onClick={() => void finishLeave(false)}>放弃修改</Button><Button disabled={leaving} variant="primary" onClick={() => void finishLeave(true)}>保存并继续</Button></div></Modal>}
     {recoveriesOpen && api && <RecoveriesDialog api={api} index={recoveries} onClose={() => setRecoveriesOpen(false)} onChanged={() => void loadRecoveries()} onOpen={path => requestLeave(() => { selectArticle(path); setRecoveryRefresh(value => value + 1); if (!location.pathname.startsWith('/library/')) navigate('/library/all') })} />}
     {previewOpen && api && <PreviewPanel api={api} onClose={() => setPreviewOpen(false)} />}
+    {syncOpen && api && project && <SyncDialog api={api} projectPath={project.path} onClose={() => setSyncOpen(false)} onPushed={() => void refresh()} />}
   </div>
 }
 

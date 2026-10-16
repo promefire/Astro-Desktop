@@ -14,6 +14,7 @@ import { importRemoteImage } from './remote-images'
 import { createContentWatch } from './content-watch'
 import { publishDraft } from './publish-draft'
 import { withdrawPost } from './withdraw-post'
+import { pullRemote, pushChanges } from './git-sync'
 import { createEditorService } from './editor'
 import { inspectDefaultEditors, missingAssociationMessage, openWithDefaultApp, type DefaultPathOpener, type RegistryQuery } from './external-editor'
 import { createPreviewService } from './preview'
@@ -141,6 +142,8 @@ export function createServices(settingsFilePath: string) {
         try { return await withdrawPost(project, input, (from, to) => editor.move(project, from, to)) }
         finally { watch.resume() }
       }),
+      pullRemote: (input: unknown) => serialProject(() => pullRemote(current(), input)),
+      pushChanges: (input: unknown) => serialProject(() => pushChanges(current(), input)),
       subscribe(listener: () => void) { watchListeners.add(listener); return () => watchListeners.delete(listener) },
       pauseWatch() { watch.pause() },
       resumeWatch() { watch.resume() },

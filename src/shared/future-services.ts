@@ -20,15 +20,13 @@ export interface AstroProcessService {
   /** Local preview start, stop, and article URLs are implemented on DesktopApi. Production build is not. */
   build(project: ProjectInfo): Promise<{ success: boolean; logPath: string }>
 }
-export interface GitWriteService {
+/**
+ * Git 同步已按用户选择的简化流程实现（拉取 → 列出改动 → 提交并推送），见 DesktopApi 的
+ * pullRemote / pushChanges。下面这些更细的能力被明确取消，不保留占位接口：
+ * 按文件选择性暂存、应用内解决合并冲突、构建校验、部署回执。
+ */
+export interface GitAdvancedService {
   diff(relativePaths: string[]): Promise<string>
   commit(input: { selectedPaths: string[]; message: string }): Promise<{ commit: string }>
-  fetch(): Promise<void>
   integrate(): Promise<{ status: 'integrated' | 'conflict'; conflictPaths: string[] }>
-  push(): Promise<{ commit: string }>
-}
-export type PublishState = 'validating' | 'committing' | 'fetching' | 'integrating' | 'conflict' | 'building' | 'pushing' | 'pushed-deployment-unconfirmed' | 'failed'
-export interface PublishService {
-  /** Explicit selected files, preserve remote AI reports, stop on conflicts/build failures. */
-  publish(input: { selectedPaths: string[]; message: string }, onState: (state: PublishState) => void): Promise<{ commit: string; deployment: 'unconfirmed' }>
 }

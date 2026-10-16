@@ -19,7 +19,9 @@ React Renderer 只调用 `window.astroDesktop`。Preload 使用 `contextBridge` 
 
 ## 配置与副作用
 
-客户端设置写入自身 `userData/settings.json`，使用原子替换与串行化更新。`markdownHtml` 只控制编辑模式是否渲染 HTML，默认关闭；缺少该字段的旧文件仍可读取。用户显式创建草稿时写入 `src/contents/drafts` 下一个文件，显式保存时替换对应文章，显式确认后才删除单篇文章；不修改 Git index，不 fetch / commit / push。删除只 `unlink` 已核对的普通文件，拒绝链接、硬链接和目录，也不进入回收站。最近项目最多十个，记录路径、名称和上次打开时间。配置损坏应保留并提示，不覆盖为默认值。
+客户端设置写入自身 `userData/settings.json`，使用原子替换与串行化更新。`markdownHtml` 只控制编辑模式是否渲染 HTML，默认关闭；缺少该字段的旧文件仍可读取。用户显式创建草稿时写入 `src/contents/drafts` 下一个文件，显式保存时替换对应文章，显式确认后才删除单篇文章；阅读、刷新和扫描都不修改 Git index。删除只 `unlink` 已核对的普通文件，拒绝链接、硬链接和目录，也不进入回收站。最近项目最多十个，记录路径、名称和上次打开时间。配置损坏应保留并提示，不覆盖为默认值。
+
+顶栏「推送」是本客户端唯一会写 Git 的入口，流程固定为 pull → 展示改动 → commit → push：打开面板时先 `git pull --no-rebase --no-edit <remote> <branch>`，然后列出 `git status --porcelain` 报出的仓库改动并要求填写提交信息，确认后依次执行 `git add .`、`git commit -m`、`git push <remote> <branch>`。拉取失败就停在这里，不会提交半合并的工作区；工作区已经存在未解决的合并冲突时直接拒绝，避免把冲突标记提交上去。命令通过参数数组执行、不经过 shell，`GIT_TERMINAL_PROMPT=0` 只用于只读命令，拉取和推送交给系统凭据管理器或 SSH agent 认证，客户端不保存任何令牌。提交范围是仓库全部改动，不做选择性暂存；不强制推送、不重写历史、不设置上游、不执行构建或部署，也不把 push 成功说成已上线。
 
 `content:create-draft` 参数限于 projectPath、title、tags、category、description，不接受目标路径、source 或内容类型。服务校验项目是否仍活动，复核真实目录，拒绝目录链接，生成 Windows 文件名。日期采用本地时间的 YAML 时间戳，其他文本使用兼容 YAML 的 JSON 引号，防止 `on` / `true` / 日期形标签被解释成其他类型。项目切换、新建、保存和编辑恢复共用队列，过期项目请求被拒绝。
 
@@ -33,7 +35,7 @@ React Renderer 只调用 `window.astroDesktop`。Preload 使用 `contextBridge` 
 
 ## 下一阶段接口
 
-`src/shared/future-services.ts` 为后续 Frontmatter 表单更新、删除恢复、生产构建、Git 写操作和发布编排定义接口；这些未来接口没有实现，也不注册通用命令 IPC。普通草稿创建、源码保存、编辑恢复、本地预览和图片导入已转入实际 DesktopApi。AI 日报不增加创建接口，也不导入图片。
+`src/shared/future-services.ts` 为后续 Frontmatter 表单更新、删除恢复和生产构建定义接口；这些未来接口没有实现，也不注册通用命令 IPC。普通草稿创建、源码保存、编辑恢复、本地预览、图片导入、发布到正文、撤回为草稿以及拉取与推送已转入实际 DesktopApi。AI 日报不增加创建接口，也不导入图片。
 
 ## 编辑器与保存
 

@@ -1,6 +1,6 @@
 export type ContentKind = 'post' | 'draft' | 'ai-daily'
 export type Theme = 'light' | 'dark' | 'system'
-export type FileStatus = 'clean' | 'modified' | 'added' | 'untracked' | 'conflict' | 'ignored' | 'unknown'
+export type FileStatus = 'clean' | 'modified' | 'added' | 'deleted' | 'untracked' | 'conflict' | 'ignored' | 'unknown'
 export interface RecentProject { path: string; name: string; lastOpened: string }
 export interface ExternalEditorStatus { associations: Record<'.md' | '.mdx', 'ready' | 'missing'>; message: string }
 export interface OpenExternalEditorResult { articlePath: string }
@@ -43,6 +43,16 @@ export type ImageMoveAction = 'moved' | 'copied' | 'none'
 /** One relocation of an article between content directories: 草稿 → 正文 or 正文 → 草稿. */
 export interface MoveArticleInput extends ArticleTarget { baseRevision: string }
 export interface MoveArticleResult { document: ArticleDocument; imageAction: ImageMoveAction; message: string }
+export interface SyncTarget { projectPath: string }
+export interface SyncChange { path: string; status: FileStatus }
+/** What the 推送 dialog shows after pulling: the working tree changes and where the branch stands. */
+export interface SyncSnapshot {
+  branch: string | null; remote: string | null; upstream: string | null;
+  changes: SyncChange[]; ahead: number; behind: number;
+  identity: { name: string | null; email: string | null }; message: string;
+}
+export interface PushInput extends SyncTarget { message: string }
+export interface PushResult { commit: string | null; branch: string; message: string }
 export interface EditorBuffer extends ArticleTarget { source: string; baseRevision: string }
 export interface EditorRecovery extends EditorBuffer { updatedAt: string }
 export interface RecoveryIndex { entries: Array<ArticleTarget & { updatedAt: string }>; issues: string[] }
@@ -67,6 +77,8 @@ export interface DesktopApi {
   readPreviewImage(input: PreviewImageInput): Promise<Result<string | null>>;
   publishDraft(input: MoveArticleInput): Promise<Result<MoveArticleResult>>;
   withdrawPost(input: MoveArticleInput): Promise<Result<MoveArticleResult>>;
+  pullRemote(input: SyncTarget): Promise<Result<SyncSnapshot>>;
+  pushChanges(input: PushInput): Promise<Result<PushResult>>;
   getImageStorage(): Promise<Result<ImageStoragePublic>>;
   setImageStorage(input: ImageStorageUpdate): Promise<Result<ImageStoragePublic>>;
   onContentChanged(listener: () => void): () => void;
@@ -100,6 +112,7 @@ export const IPC = {
   revealArticle: 'content:reveal', openProjectFolder: 'project:reveal',
   createDraft: 'content:create-draft', deleteArticle: 'content:delete',
   importImage: 'content:import-image', chooseArticleImage: 'content:choose-image', readPreviewImage: 'content:preview-image', publishDraft: 'content:publish-draft', withdrawPost: 'content:withdraw-post',
+  pullRemote: 'sync:pull', pushChanges: 'sync:push',
   importRemoteImage: 'content:import-remote-image',
   contentChanged: 'content:changed',
   getImageStorage: 'image-storage:get', setImageStorage: 'image-storage:set',

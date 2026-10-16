@@ -21,7 +21,8 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(({ classN
 })
 Button.displayName = 'Button'
 
-export function Badge({ className, children, tone = 'neutral' }: { className?: string; children: React.ReactNode; tone?: 'neutral' | 'accent' | 'warning' }) {
+export type BadgeTone = 'neutral' | 'accent' | 'warning'
+export function Badge({ className, children, tone = 'neutral' }: { className?: string; children: React.ReactNode; tone?: BadgeTone }) {
   return <span className={cn('badge', `badge-${tone}`, className)}>{children}</span>
 }
 
