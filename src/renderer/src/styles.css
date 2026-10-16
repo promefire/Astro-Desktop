@@ -64,8 +64,11 @@ svg { flex-shrink: 0; stroke-width: 1.7; }
 code, pre { font-family: "Cascadia Code", "Consolas", "Microsoft YaHei UI", monospace; }
 .app-shell { display: flex; height: 100dvh; min-height: 500px; color: var(--text); background: var(--canvas); }
 .sidebar { position: relative; width: 218px; flex-shrink: 0; background: var(--sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 25px 14px 12px; }
-.sidebar-toggle { position: absolute; top: 50%; right: -13px; z-index: 6; width: 26px; height: 46px; padding: 0; display: grid; place-items: center; transform: translateY(-50%); border: 1px solid var(--border); border-left: 0; border-radius: 0 7px 7px 0; background: var(--surface); color: var(--muted); cursor: pointer; transition: color .12s ease, background .12s ease; }
-.sidebar-toggle:hover { color: var(--accent-text); background: var(--subtle); }
+.sidebar-toggle { position: absolute; top: 50%; right: -13px; z-index: 6; width: 26px; height: 46px; padding: 0; display: grid; place-items: center; transform: translateY(-50%); border: 1px solid var(--border); border-left: 0; border-radius: 0 7px 7px 0; background: var(--surface); color: var(--muted); cursor: pointer; opacity: 0; transition: opacity .15s ease, color .12s ease, background .12s ease; }
+/* 平时隐藏，指针移到附近或键盘聚焦时才出现。::before 只向工作区一侧和上下扩大触发范围，
+   不向侧边栏内部延伸，避免盖住导航行的计数。 */
+.sidebar-toggle::before { content: ''; position: absolute; inset: -12px -20px -12px 0; }
+.sidebar-toggle:hover, .sidebar-toggle:focus-visible { opacity: 1; color: var(--accent-text); background: var(--subtle); }
 .sidebar.is-collapsed { width: 62px; padding-left: 9px; padding-right: 9px; }
 .sidebar.is-collapsed .brand { justify-content: center; margin-left: 0; margin-right: 0; }
 .sidebar.is-collapsed .brand-text { display: none; }
@@ -177,8 +180,9 @@ option { background: var(--surface); color: var(--text); }
 .pagination > div { display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
 .inspector-shell { position: relative; display: flex; flex-shrink: 0; min-height: 0; }
 .inspector-shell.is-collapsed { width: 0; }
-.inspector-toggle { position: absolute; top: 50%; left: -13px; z-index: 6; width: 26px; height: 46px; padding: 0; display: grid; place-items: center; transform: translateY(-50%); border: 1px solid var(--border); border-right: 0; border-radius: 7px 0 0 7px; background: var(--surface); color: var(--muted); cursor: pointer; transition: left .16s ease, color .12s ease, background .12s ease; }
-.inspector-toggle:hover { color: var(--accent-text); background: var(--subtle); }
+.inspector-toggle { position: absolute; top: 50%; left: -13px; z-index: 6; width: 26px; height: 46px; padding: 0; display: grid; place-items: center; transform: translateY(-50%); border: 1px solid var(--border); border-right: 0; border-radius: 7px 0 0 7px; background: var(--surface); color: var(--muted); cursor: pointer; opacity: 0; transition: opacity .15s ease, left .16s ease, color .12s ease, background .12s ease; }
+.inspector-toggle::before { content: ''; position: absolute; inset: -12px 0 -12px -20px; }
+.inspector-toggle:hover, .inspector-toggle:focus-visible { opacity: 1; color: var(--accent-text); background: var(--subtle); }
 .inspector-shell.is-collapsed .inspector-toggle { left: -26px; border-right: 1px solid var(--border); border-radius: 7px; }
 .inspector { width: 306px; flex-shrink: 0; border-left: 1px solid var(--border); background: var(--surface); min-height: 0; display: flex; flex-direction: column; }
 .inspector-heading { display: flex; align-items: center; justify-content: space-between; padding: 25px 23px 0; }
