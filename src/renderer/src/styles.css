@@ -63,7 +63,20 @@ svg { flex-shrink: 0; stroke-width: 1.7; }
 ::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--secondary) 40%, transparent); }
 code, pre { font-family: "Cascadia Code", "Consolas", "Microsoft YaHei UI", monospace; }
 .app-shell { display: flex; height: 100dvh; min-height: 500px; color: var(--text); background: var(--canvas); }
-.sidebar { width: 218px; flex-shrink: 0; background: var(--sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 25px 14px 12px; }
+.sidebar { position: relative; width: 218px; flex-shrink: 0; background: var(--sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 25px 14px 12px; }
+.sidebar-toggle { position: absolute; top: 50%; right: -13px; z-index: 6; width: 26px; height: 46px; padding: 0; display: grid; place-items: center; transform: translateY(-50%); border: 1px solid var(--border); border-left: 0; border-radius: 0 7px 7px 0; background: var(--surface); color: var(--muted); cursor: pointer; transition: color .12s ease, background .12s ease; }
+.sidebar-toggle:hover { color: var(--accent-text); background: var(--subtle); }
+.sidebar.is-collapsed { width: 62px; padding-left: 9px; padding-right: 9px; }
+.sidebar.is-collapsed .brand { justify-content: center; margin-left: 0; margin-right: 0; }
+.sidebar.is-collapsed .brand-text { display: none; }
+.sidebar.is-collapsed .project-switcher { justify-content: center; padding: 12px 0; }
+.sidebar.is-collapsed .project-switcher-text, .sidebar.is-collapsed .project-switcher > svg { display: none; }
+.sidebar.is-collapsed .nav-group-label { display: none; }
+.sidebar.is-collapsed .main-nav { margin-top: 30px; }
+.sidebar.is-collapsed .nav-item { justify-content: center; gap: 0; padding: 10px 0; }
+.sidebar.is-collapsed .nav-item > span { display: none; }
+.sidebar.is-collapsed .sidebar-caption { justify-content: center; padding: 10px 0 0; }
+.sidebar.is-collapsed .sidebar-caption > span { display: none; }
 .brand { display: flex; align-items: center; gap: 9px; margin: 1px 8px 27px; }
 .brand-symbol { width: 32px; height: 34px; display: grid; place-items: center; color: var(--accent); }
 .brand strong { font-size: 15px; font-weight: 680; letter-spacing: -.6px; white-space: nowrap; }

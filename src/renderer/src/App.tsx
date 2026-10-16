@@ -77,6 +77,7 @@ function App() {
   const [recoveryRefresh, setRecoveryRefresh] = useState(0)
   const blocker = useBlocker(() => editorDirty.current)
   const [inspectorOpen, setInspectorOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>({ type: 'all' })
   const [tagFilter, setTagFilter] = useState<TagFilter>({ type: 'all' })
@@ -374,22 +375,23 @@ function App() {
   ]
 
   return <div className="app-shell">
-    <aside className="sidebar" aria-label="主导航">
-      <div className="brand"><div className="brand-symbol"><Sparkles size={22} strokeWidth={1.8} /></div><div><strong>Astro<span> Desktop</span></strong><small>本地博客工作台</small></div></div>
-      <NavLink to="/projects" className={cn('project-switcher', isProjects && 'is-active')}>
+    <aside className={cn('sidebar', !sidebarOpen && 'is-collapsed')} id="app-sidebar" aria-label="主导航">
+      <div className="brand"><div className="brand-symbol"><Sparkles size={22} strokeWidth={1.8} /></div><div className="brand-text"><strong>Astro<span> Desktop</span></strong><small>本地博客工作台</small></div></div>
+      <NavLink to="/projects" className={cn('project-switcher', isProjects && 'is-active')} aria-label={project?.name ?? '选择博客项目'} title={project?.name ?? '选择博客项目'}>
         <span className="project-avatar"><Folder size={18} /></span>
         <span className="project-switcher-text"><strong>{project?.name ?? '选择博客项目'}</strong><small>{project ? '本地项目' : '连接你的内容'}</small></span>
         <ChevronRight size={15} />
       </NavLink>
       <div className="nav-group-label">内容库</div>
       <nav className="main-nav">
-        {navItems.map(({ view: item, icon: Icon }) => <NavLink key={item} to={`/library/${item}`} className={cn('nav-item', !isSettings && !isProjects && !isStats && view === item && 'is-active')}><Icon size={17} /><span>{viewLabels[item]}</span><span className="nav-count">{project ? counts[item] : '·'}</span></NavLink>)}
-        <NavLink to="/stats" className={cn('nav-item', isStats && 'is-active')}><ChartColumn size={17} /><span>文章统计</span></NavLink>
+        {navItems.map(({ view: item, icon: Icon }) => <NavLink key={item} to={`/library/${item}`} className={cn('nav-item', !isSettings && !isProjects && !isStats && view === item && 'is-active')} aria-label={viewLabels[item]} title={viewLabels[item]}><Icon size={17} /><span>{viewLabels[item]}</span><span className="nav-count">{project ? counts[item] : '·'}</span></NavLink>)}
+        <NavLink to="/stats" className={cn('nav-item', isStats && 'is-active')} aria-label="文章统计" title="文章统计"><ChartColumn size={17} /><span>文章统计</span></NavLink>
       </nav>
       <div className="sidebar-bottom">
-        <NavLink to="/settings" className={({ isActive }) => cn('nav-item', isActive && 'is-active')}><Settings2 size={17} /><span>项目设置</span></NavLink>
+        <NavLink to="/settings" className={({ isActive }) => cn('nav-item', isActive && 'is-active')} aria-label="项目设置" title="项目设置"><Settings2 size={17} /><span>项目设置</span></NavLink>
         <div className="sidebar-caption"><span>本地文件 · 直接读取</span><Button size="icon" variant="ghost" aria-label={settings.theme === 'dark' ? '切换浅色主题' : '切换深色主题'} title={settings.theme === 'dark' ? '切换浅色主题' : '切换深色主题'} disabled={!api || themeBusy} onClick={() => void changeTheme(settings.theme === 'dark' ? 'light' : 'dark')}>{settings.theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}</Button></div>
       </div>
+      <button type="button" className="sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-expanded={sidebarOpen} aria-controls="app-sidebar" aria-label={sidebarOpen ? '收起侧边栏' : '展开侧边栏'} title={sidebarOpen ? '收起侧边栏' : '展开侧边栏'}>{sidebarOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}</button>
     </aside>
 
     <div className="workspace">
