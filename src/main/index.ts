@@ -100,6 +100,7 @@ function registerHandlers(): void {
   })
   handle(IPC.readPreviewImage, (input) => services.content.readPreviewImage(input))
   handle(IPC.publishDraft, (input) => services.content.publishDraft(input))
+  handle(IPC.withdrawPost, (input) => services.content.withdrawPost(input))
   handle(IPC.getImageStorage, () => services.imageStorage.get())
   handle(IPC.setImageStorage, (input) => services.imageStorage.update(input))
   services.content.subscribe(() => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(IPC.contentChanged) })

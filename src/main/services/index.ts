@@ -13,6 +13,7 @@ import { imageBytes, importArticleImage, readPreviewImage } from './images'
 import { importRemoteImage } from './remote-images'
 import { createContentWatch } from './content-watch'
 import { publishDraft } from './publish-draft'
+import { withdrawPost } from './withdraw-post'
 import { createEditorService } from './editor'
 import { inspectDefaultEditors, missingAssociationMessage, openWithDefaultApp, type DefaultPathOpener, type RegistryQuery } from './external-editor'
 import { createPreviewService } from './preview'
@@ -132,6 +133,12 @@ export function createServices(settingsFilePath: string) {
         const project = current()
         watch.pause()
         try { return await publishDraft(project, input, (from, to) => editor.move(project, from, to)) }
+        finally { watch.resume() }
+      }),
+      withdrawPost: (input: unknown) => serialProject(async () => {
+        const project = current()
+        watch.pause()
+        try { return await withdrawPost(project, input, (from, to) => editor.move(project, from, to)) }
         finally { watch.resume() }
       }),
       subscribe(listener: () => void) { watchListeners.add(listener); return () => watchListeners.delete(listener) },

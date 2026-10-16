@@ -1,5 +1,29 @@
 # 测试记录
 
+## 2026-10-16：正文撤回为草稿
+
+- `npm run typecheck` 通过，`npm run build` 通过（Main / Preload / Renderer）。
+- `npm test`：**95 通过、1 跳过**。跳过项是未设置 `ASTRO_BLOG_TEST_PATH` 的真实博客专项。新增 `tests/withdraw-post.test.ts`，7 项通过。
+- 设置 `ASTRO_BLOG_TEST_PATH=F:\blog\Astro_Blog` 后 `npm test`：**96 通过、0 跳过**。
+- `npx playwright test`：**15 项通过**，包含新增的 `tests/e2e/withdraw.spec.ts`。原有的 `tests/e2e/publish.spec.ts` 在同一次运行中通过，说明移动逻辑抽取到 `article-move.ts` 后发布方向行为不变。
+- 没有改写 `F:\blog\Astro_Blog`：本轮只做只读读取，没有保存、移动、提交或推送博客文件。仓库中该目录原有的本地改动不是本次测试产生的。
+
+服务层（`tests/withdraw-post.test.ts`）覆盖：
+
+- 文章与同名图片目录一起移动到 drafts，正文内容逐字节不变，相对引用和远程图片地址不改写，移动后 post 目录为空，恢复记录路径同步为新路径，索引里的类型变为草稿，且不写入 `draft` 字段。
+- 草稿目录不存在时自动创建；`.mdx` 保持后缀；没有本地图片目录时 `imageAction` 为 `none`。
+- 正文位于子目录时保持目录结构，中间目录一并创建。
+- 目标已有同名 `.md`、同名图片目录或另一种后缀时停止，原正文和已有草稿都不被覆盖。
+- 图片目录被其他文章引用时改为复制到草稿并保留原目录，引用文件不变。
+- 磁盘 revision 与编辑器基准不一致时拒绝移动；`article-renamed` 与 `source-removed` 两个中断点都会回滚，原正文、图片目录和空的草稿目录保持不变。
+- AI 日报、草稿路径、多余字段和另一个项目的路径都被拒绝。
+
+Electron E2E（`tests/e2e/withdraw.spec.ts`）覆盖：
+
+- 未保存修改时点击「撤回为草稿」会出现确认框；取消后磁盘上的正文没有新增内容，草稿目录也没有文件。
+- 选择「放弃修改并撤回」后，文章出现在 `src/contents/drafts`，正文文件消失，编辑区标题跟随新路径，按钮从「撤回为草稿」变成「发布到正文」，文章统计显示正文 0 篇、草稿 1 篇。
+- 全程没有未捕获的页面错误。测试写入的是隔离的临时博客，不使用模拟文章数据。
+
 ## 2026-10-14：Markdown HTML 支持开关
 
 - `npm run build` 通过。

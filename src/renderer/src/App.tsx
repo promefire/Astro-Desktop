@@ -300,6 +300,14 @@ function App() {
     finally { setDeleting(false) }
   }
 
+  // 发布到正文和撤回为草稿都只把文章移动到另一个内容目录，编辑器继续跟随新路径。
+  const followRelocatedArticle = (moved: ArticleDocument) => {
+    if (!api) return
+    setSelectedPath(moved.article.relativePath)
+    void unwrap(api.listArticles()).then(next => setIndex(next)).catch(cause => setError(errorMessage(cause)))
+    void loadRecoveries()
+  }
+
   const changeTheme = async (theme: Theme) => {
     if (!api || themeBusy) return
     setThemeBusy(true)
@@ -416,7 +424,7 @@ function App() {
                   </div>
                   <div className="pagination"><span>{filtered.length ? `${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, filtered.length)}` : '0'} / {filtered.length} 篇</span><div><Button size="icon" variant="ghost" aria-label="上一页" disabled={currentPage <= 1 || busy} onClick={() => setPage(currentPage - 1)}><ChevronLeft size={16} /></Button><span>{currentPage} / {totalPages}</span><Button size="icon" variant="ghost" aria-label="下一页" disabled={currentPage >= totalPages || busy} onClick={() => setPage(currentPage + 1)}><ChevronRight size={16} /></Button></div></div>
                 </section>
-                {selectedPath && (!document || busy || documentLoading ? <section className="editor-loading"><Button onClick={() => selectArticle(null)}><ChevronLeft size={16} />返回列表</Button><EmptyState icon={<FileText size={25} />} title={documentError ? '无法打开文章' : '正在读取文章'} description={documentError ?? '加载原始源码与恢复记录…'} /></section> : <ArticleEditor key={`${project.path}:${selectedPath}`} ref={editor} api={api} projectPath={project.path} document={document} htmlEnabled={settings.markdownHtml} onDirtyChange={reportDirty} onRecoveryChange={() => void loadRecoveries()} onSaved={saved => { setDocument(saved); setIndex(current => ({ ...current, articles: current.articles.map(article => article.relativePath === saved.article.relativePath ? saved.article : article) })) }} onPublished={published => { setSelectedPath(published.article.relativePath); void unwrap(api.listArticles()).then(next => setIndex(next)).catch(cause => setError(errorMessage(cause))); void loadRecoveries() }} onBack={() => requestLeave(() => selectArticle(null))} />)}
+                {selectedPath && (!document || busy || documentLoading ? <section className="editor-loading"><Button onClick={() => selectArticle(null)}><ChevronLeft size={16} />返回列表</Button><EmptyState icon={<FileText size={25} />} title={documentError ? '无法打开文章' : '正在读取文章'} description={documentError ?? '加载原始源码与恢复记录…'} /></section> : <ArticleEditor key={`${project.path}:${selectedPath}`} ref={editor} api={api} projectPath={project.path} document={document} htmlEnabled={settings.markdownHtml} onDirtyChange={reportDirty} onRecoveryChange={() => void loadRecoveries()} onSaved={saved => { setDocument(saved); setIndex(current => ({ ...current, articles: current.articles.map(article => article.relativePath === saved.article.relativePath ? saved.article : article) })) }} onPublished={followRelocatedArticle} onWithdrawn={followRelocatedArticle} onBack={() => requestLeave(() => selectArticle(null))} />)}
                 {inspectorOpen && <ArticleInspector article={selectedArticle} document={document} loading={documentLoading || busy} error={documentError} onReveal={() => selectedPath && void runAction(desktop => desktop.revealArticle(selectedPath))} />}
               </main>}
 

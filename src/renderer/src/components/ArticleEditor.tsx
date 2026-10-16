@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
-import { ArrowLeft, Code2, Download, ExternalLink, FileDown, Globe, ImagePlus, LoaderCircle, PenLine, Redo2, RotateCcw, Save, Send, Undo2 } from 'lucide-react'
+import { ArchiveRestore, ArrowLeft, Code2, Download, ExternalLink, FileDown, Globe, ImagePlus, LoaderCircle, PenLine, Redo2, RotateCcw, Save, Send, Undo2 } from 'lucide-react'
 import type { ArticleDocument, DesktopApi, EditorBuffer, EditorRecovery, PreviewArticleResult, Result } from '../../../shared/contracts'
 import { Button, cn } from './ui'
 import { MuyaEditor, type MuyaEditorHandle } from './MuyaEditor'
@@ -12,7 +12,7 @@ import '../editor/editor.css'
 export interface ArticleEditorHandle { save(): Promise<boolean>; discard(): Promise<boolean>; isDirty(): boolean; isBusy(): boolean }
 interface Props {
   document: ArticleDocument; projectPath: string; api: DesktopApi; htmlEnabled: boolean;
-  onSaved(document: ArticleDocument): void; onPublished(document: ArticleDocument): void; onBack(): void;
+  onSaved(document: ArticleDocument): void; onPublished(document: ArticleDocument): void; onWithdrawn(document: ArticleDocument): void; onBack(): void;
   onDirtyChange(dirty: boolean): void; onRecoveryChange(): void;
 }
 async function unwrap<T>(request: Promise<Result<T>>): Promise<T> {
@@ -26,7 +26,7 @@ const message = (error: unknown) => error instanceof Error ? error.message : '�
 type EditorMode = 'wysiwyg' | 'source'
 
 export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function ArticleEditor({
-  document, projectPath, api, htmlEnabled, onSaved, onPublished, onBack, onDirtyChange, onRecoveryChange
+  document, projectPath, api, htmlEnabled, onSaved, onPublished, onWithdrawn, onBack, onDirtyChange, onRecoveryChange
 }, ref) {
   const muya = useRef<MuyaEditorHandle>(null)
   const sourceEditor = useRef<SourceEditorHandle>(null)
@@ -59,6 +59,7 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
   const [externalSession, setExternalSession] = useState(false)
   const [sitePrompt, setSitePrompt] = useState(false)
   const [publishPrompt, setPublishPrompt] = useState(false)
+  const [withdrawPrompt, setWithdrawPrompt] = useState(false)
   const [siteUnresolved, setSiteUnresolved] = useState<PreviewArticleResult | null>(null)
   const externalSessionRef = useRef(false)
   const setExternal = (value: boolean) => { externalSessionRef.current = value; setExternalSession(value) }
@@ -283,6 +284,26 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
     if (!discarded) return
     await runPublish()
   }
+  const runWithdraw = async () => {
+    if (workingRef.current || loadingRecovery || recovery || externalSessionRef.current) return
+    workingRef.current = true; setWorking(true); setError(''); setWithdrawPrompt(false)
+    try {
+      const result = await unwrap(api.withdrawPost({ ...target, baseRevision: baseRevision.current }))
+      setNotice(result.message)
+      onWithdrawn(result.document)
+    } catch (cause) { setError(message(cause)) }
+    finally { workingRef.current = false; setWorking(false) }
+  }
+  const saveAndWithdraw = async () => {
+    const saved = await save()
+    if (!saved) { setWithdrawPrompt(false); return }
+    await runWithdraw()
+  }
+  const discardAndWithdraw = async () => {
+    const discarded = await discard()
+    if (!discarded) return
+    await runWithdraw()
+  }
   const restoreRecovery = () => {
     if (!recovery) return
     baseRevision.current = base.current.revision
@@ -375,7 +396,7 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
   }
 
   return <section className="article-editor" aria-label="文章编辑工作区">
-    <div className="editor-heading"><Button size="small" variant="ghost" onClick={onBack} disabled={working}><ArrowLeft size={16} />返回列表</Button><div className="editor-heading-title"><strong>{base.current.article.title}</strong><span>{target.relativePath}</span></div><span className={cn('editor-save-state', dirty && 'is-dirty')}>{externalSession ? '外部编辑中' : dirty ? '未保存' : '已保存'}</span>{document.article.kind === 'draft' && <Button size="small" disabled={working || loadingRecovery || !!recovery || externalSession} onClick={() => { if (dirtyRef.current) setPublishPrompt(true); else void runPublish() }}><Send size={15} />发布到正文</Button>}<Button variant="primary" size="small" disabled={!dirty || working || loadingRecovery || !!recovery || externalSession} onClick={() => void save()}>{working ? <LoaderCircle size={15} className="spin" /> : <Save size={15} />}保存</Button></div>
+    <div className="editor-heading"><Button size="small" variant="ghost" onClick={onBack} disabled={working}><ArrowLeft size={16} />返回列表</Button><div className="editor-heading-title"><strong>{base.current.article.title}</strong><span>{target.relativePath}</span></div><span className={cn('editor-save-state', dirty && 'is-dirty')}>{externalSession ? '外部编辑中' : dirty ? '未保存' : '已保存'}</span>{document.article.kind === 'draft' && <Button size="small" disabled={working || loadingRecovery || !!recovery || externalSession} onClick={() => { if (dirtyRef.current) setPublishPrompt(true); else void runPublish() }}><Send size={15} />发布到正文</Button>}{document.article.kind === 'post' && <Button size="small" disabled={working || loadingRecovery || !!recovery || externalSession} onClick={() => { if (dirtyRef.current) setWithdrawPrompt(true); else void runWithdraw() }}><ArchiveRestore size={15} />撤回为草稿</Button>}<Button variant="primary" size="small" disabled={!dirty || working || loadingRecovery || !!recovery || externalSession} onClick={() => void save()}>{working ? <LoaderCircle size={15} className="spin" /> : <Save size={15} />}保存</Button></div>
     {error && <div className="editor-error" role="alert">{error}</div>}
     {imageProgress && <div className="recovery-prompt" role="status"><span>{imageProgress}</span><Button size="small" disabled={stoppingImages} onClick={() => { stopImages.current = true; setStoppingImages(true) }}>{stoppingImages ? '当前图片结束后停止...' : '停止后续图片'}</Button></div>}
     {externalSession && <section className="external-editor-guide" aria-label="正在使用外部编辑器"><ExternalLink size={52} strokeWidth={1.25} aria-hidden="true" /><h2>正在使用外部编辑器</h2><p>文件已使用系统默认程序打开，您可以在外部编辑器中进行编辑。编辑完成后，请点击下方按钮重新加载内容。</p><Button disabled={working} onClick={() => void finishExternal()}>{working ? <LoaderCircle size={16} className="spin" /> : <Download size={16} />}重新加载</Button></section>}
@@ -406,5 +427,6 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
     {sitePrompt && <Modal title="在站点中预览" onCancel={() => { if (!working) setSitePrompt(false) }}><p>本地站点读取的是磁盘上的文章，不是编辑区里尚未保存的内容。请先保存或放弃修改。取消不会打开浏览器。保存失败或发生冲突时不会打开。</p><div className="dialog-actions"><Button disabled={working} onClick={() => setSitePrompt(false)}>取消</Button><Button disabled={working} onClick={() => void discardAndPreview()}>放弃修改并预览</Button><Button disabled={working} variant="primary" onClick={() => void saveAndPreview()}>保存并预览</Button></div></Modal>}
     {siteUnresolved && <Modal title="无法确定文章地址" onCancel={() => setSiteUnresolved(null)}><p>{siteUnresolved.message}</p><div className="dialog-actions"><Button onClick={() => setSiteUnresolved(null)}>取消</Button><Button variant="primary" disabled={!siteUnresolved.homepage} onClick={() => void (async () => { try { await unwrap(api.openPreviewHome()); setNotice('已打开站点首页。尚未打开具体文章。'); setSiteUnresolved(null) } catch (cause) { setError(message(cause)) } })()}>打开站点首页</Button></div></Modal>}
     {publishPrompt && <Modal title="发布到正文" onCancel={() => { if (!working) setPublishPrompt(false) }}><p>这只把草稿文件和它的同名图片目录移动到 src/contents/post。不会提交 Git，也不会构建或部署。请先保存或放弃编辑区里的修改。保存失败或磁盘版本冲突时不会移动文件。</p><div className="dialog-actions"><Button disabled={working} onClick={() => setPublishPrompt(false)}>取消</Button><Button disabled={working} onClick={() => void discardAndPublish()}>放弃修改并发布</Button><Button disabled={working} variant="primary" onClick={() => void saveAndPublish()}>保存并发布</Button></div></Modal>}
+    {withdrawPrompt && <Modal title="撤回为草稿" onCancel={() => { if (!working) setWithdrawPrompt(false) }}><p>这只把正文文件和它的同名图片目录移动到 src/contents/drafts。不会提交 Git，也不会构建或部署，也不会改写 Frontmatter 里的 draft 字段。撤回后本站不再收录这篇文章。请先保存或放弃编辑区里的修改。保存失败或磁盘版本冲突时不会移动文件。</p><div className="dialog-actions"><Button disabled={working} onClick={() => setWithdrawPrompt(false)}>取消</Button><Button disabled={working} onClick={() => void discardAndWithdraw()}>放弃修改并撤回</Button><Button disabled={working} variant="primary" onClick={() => void saveAndWithdraw()}>保存并撤回</Button></div></Modal>}
   </section>
 })

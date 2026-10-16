@@ -37,8 +37,10 @@ export interface ImportImageResult { markdown: string; storage: 'local' | 'remot
 export interface ImportRemoteImageInput extends ArticleTarget { url: string }
 export interface ImportRemoteImageResult { destination: string; storage: 'local' | 'remote'; skipped: boolean }
 export interface PreviewImageInput extends ArticleTarget { destination: string }
-export interface PublishDraftInput extends ArticleTarget { baseRevision: string }
-export interface PublishDraftResult { document: ArticleDocument; imageAction: 'moved' | 'copied' | 'none'; message: string }
+export type ImageMoveAction = 'moved' | 'copied' | 'none'
+/** One relocation of an article between content directories: 草稿 → 正文 or 正文 → 草稿. */
+export interface MoveArticleInput extends ArticleTarget { baseRevision: string }
+export interface MoveArticleResult { document: ArticleDocument; imageAction: ImageMoveAction; message: string }
 export interface EditorBuffer extends ArticleTarget { source: string; baseRevision: string }
 export interface EditorRecovery extends EditorBuffer { updatedAt: string }
 export interface RecoveryIndex { entries: Array<ArticleTarget & { updatedAt: string }>; issues: string[] }
@@ -61,7 +63,8 @@ export interface DesktopApi {
   importRemoteImage(input: ImportRemoteImageInput): Promise<Result<ImportRemoteImageResult>>;
   chooseArticleImage(input: ArticleTarget): Promise<Result<ImportImageResult | null>>;
   readPreviewImage(input: PreviewImageInput): Promise<Result<string | null>>;
-  publishDraft(input: PublishDraftInput): Promise<Result<PublishDraftResult>>;
+  publishDraft(input: MoveArticleInput): Promise<Result<MoveArticleResult>>;
+  withdrawPost(input: MoveArticleInput): Promise<Result<MoveArticleResult>>;
   getImageStorage(): Promise<Result<ImageStoragePublic>>;
   setImageStorage(input: ImageStorageUpdate): Promise<Result<ImageStoragePublic>>;
   onContentChanged(listener: () => void): () => void;
@@ -94,7 +97,7 @@ export const IPC = {
   refreshProject: 'project:refresh', listArticles: 'content:list', readArticle: 'content:read',
   revealArticle: 'content:reveal', openProjectFolder: 'project:reveal',
   createDraft: 'content:create-draft', deleteArticle: 'content:delete',
-  importImage: 'content:import-image', chooseArticleImage: 'content:choose-image', readPreviewImage: 'content:preview-image', publishDraft: 'content:publish-draft',
+  importImage: 'content:import-image', chooseArticleImage: 'content:choose-image', readPreviewImage: 'content:preview-image', publishDraft: 'content:publish-draft', withdrawPost: 'content:withdraw-post',
   importRemoteImage: 'content:import-remote-image',
   contentChanged: 'content:changed',
   getImageStorage: 'image-storage:get', setImageStorage: 'image-storage:set',

@@ -21,6 +21,7 @@ const api: DesktopApi = {
   chooseArticleImage: (input) => ipcRenderer.invoke(IPC.chooseArticleImage, input),
   readPreviewImage: (input) => ipcRenderer.invoke(IPC.readPreviewImage, input),
   publishDraft: (input) => ipcRenderer.invoke(IPC.publishDraft, input),
+  withdrawPost: (input) => ipcRenderer.invoke(IPC.withdrawPost, input),
   getImageStorage: () => ipcRenderer.invoke(IPC.getImageStorage),
   setImageStorage: (input) => ipcRenderer.invoke(IPC.setImageStorage, input),
   onContentChanged: (listener) => {
