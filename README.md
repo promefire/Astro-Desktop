@@ -18,7 +18,7 @@ npm run dev
 
 需要并行运行隔离会话时，可设置 `$env:ASTRO_DESKTOP_DEV_PORT = '5188'` 指定其他端口；仍严格检查占用，不会自动回退。E2E 开发测试使用独立空闲端口，保留你已启动的客户端。
 
-首次启动点击「选择博客目录」，选择博客根目录，例如 `F:\blog\Astro_Blog`。目录须包含声明 Astro 依赖的 `package.json`，以及适配的内容目录。选择项目时不会安装博客依赖，也不会自动执行博客脚本。关闭后重启会恢复最近项目。
+首次启动点击「选择博客目录」，选择博客根目录，例如 `F:\blog\Astro_Blog`。目录须有声明 Astro 依赖的 `package.json` 和 `src/contents/post`；`src/contents/drafts` 与 `src/contents/ai-daily` 可以不存在，缺失时只提示，侧边栏不显示对应入口。选择项目时不会安装博客依赖，也不会自动执行博客脚本。关闭后重启会恢复最近项目。
 
 ```powershell
 npm run typecheck  # TypeScript 严格检查

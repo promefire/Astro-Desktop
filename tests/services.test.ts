@@ -69,15 +69,28 @@ describe('project connection and persisted settings', () => {
     await expect(createServices(settingsFile).projects.openRecent(project)).rejects.toMatchObject({ code: 'PROJECT_NOT_AUTHORIZED' })
   })
 
-  it('validates Astro and both dedicated content collections without executing configs', async () => {
+  it('requires only the post directory, keeps optional collections optional, and never executes configs', async () => {
     const services = createServices(settingsFile)
     await write('astro.config.mjs', 'throw new Error("must never run")')
     await expect(services.projects.select(project)).resolves.toMatchObject({ path: project })
     await write('package.json', '{"dependencies":{"react":"19"}}')
     await expect(services.projects.select(project)).rejects.toMatchObject({ code: 'INVALID_PROJECT' })
     await fixture(project)
+    // 草稿与 AI 日报目录不是必要条件：项目照常打开，只记警告并报出存在情况。
     await rm(path.join(project, 'src/contents/ai-daily'), { recursive: true })
-    await expect(services.projects.select(project)).rejects.toThrow('src/contents/ai-daily')
+    await rm(path.join(project, 'src/contents/drafts'), { recursive: true })
+    const optional = await services.projects.select(project)
+    expect(optional.contentPresence).toEqual({ post: true, draft: false, 'ai-daily': false })
+    expect(optional.warnings.some(warning => warning.includes('src/contents/ai-daily'))).toBe(true)
+    expect(optional.warnings.some(warning => warning.includes('src/contents/drafts'))).toBe(true)
+    // 缺少这两个目录时仍能列出正文，并把缺失的目录单独报出来。
+    await write('src/contents/post/只有正文.md', sample)
+    const index = await services.content.list()
+    expect(index.articles.map(article => article.relativePath)).toEqual(['src/contents/post/只有正文.md'])
+    expect(index.issues.map(issue => issue.path).sort()).toEqual(['src/contents/ai-daily', 'src/contents/drafts'])
+    // 正文目录仍然是必要条件。
+    await rm(path.join(project, 'src/contents/post'), { recursive: true })
+    await expect(services.projects.select(project)).rejects.toThrow('src/contents/post')
   })
 
   it('preserves a malformed settings file and reports failure instead of overwriting it', async () => {

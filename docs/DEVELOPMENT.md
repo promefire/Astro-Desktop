@@ -1,5 +1,14 @@
 # 开发记录
 
+## 2026-10-16：只要求正文目录，草稿与 AI 日报目录改为可选
+
+- `inspectProject` 原来把 `post` 和 `ai-daily` 都当作必要条件，缺任何一个就直接判定为无效项目。现改为只要求 `post`；`draft` 与 `ai-daily` 缺失时记为警告，并把存在情况放进 `contentPresence`，交给侧边栏决定渲染。
+- 警告文案按目录区分：`missingDirectoryMessage(kind)` 给出具体目录名，非「目录缺失」的失败（例如目录被链接替换、权限不足）仍使用原来那两类提示，`post` 缺失沿用「缺少内容目录」并把 `INVALID_PROJECT` 抛回。
+- `content.list()` 里原本只对草稿目录做了「缺失即跳过」的特殊处理，其他目录缺失会掉进 `scan()` 再报一条原始文件系统错误。现在三个目录统一处理：缺失就按名字报一条并跳过，不再重复报错。
+- 缺失的目录仍然会出现在读取提示里（`index.issues`），这是有意保留的：`tests/real-blog.test.ts` 与 `tests/e2e/desktop.spec.ts` 都按这个契约断言草稿目录的提示，改成静默会让「目录真的没了」也无人察觉。
+- 放宽后仍然不需要改动渲染层：侧边栏已经按 `contentPresence` 过滤，缺目录时入口自然消失。
+- 影响面确认：`tests/services.test.ts` 里断言「删除 ai-daily 后拒绝打开」的用例按新规则改成断言可以打开并带警告；其余用例要么三个目录俱全，要么本来就没建草稿目录。
+
 ## 2026-10-16：侧边栏入口跟随内容目录
 
 - `ProjectInfo` 增加 `contentPresence: Record<ContentKind, boolean>`，由 `inspectProject` 在项目校验时顺带得到，不额外读一次磁盘。正文和 AI 日报目录仍然和以前一样是打开项目的必要条件，草稿目录缺失只记录警告。

@@ -1,7 +1,7 @@
 import path from 'node:path'
 import { readdir, realpath, stat } from 'node:fs/promises'
-import type { ArticleDocument, ArticleTarget, ContentIndex, OpenExternalEditorResult, ProjectInfo } from '../../shared/contracts'
-import { CONTENT_DIRECTORIES, MISSING_DRAFTS_MESSAGE, contentKind, inspectProject, parseArticle } from '../adapters/promefire'
+import type { ArticleDocument, ArticleTarget, ContentIndex, ContentKind, OpenExternalEditorResult, ProjectInfo } from '../../shared/contracts'
+import { CONTENT_DIRECTORIES, contentKind, inspectProject, missingDirectoryMessage, parseArticle } from '../adapters/promefire'
 import { ServiceError, errorMessage, isMissing } from './errors'
 import { ARTICLE_SIZE_LIMIT, isWithin, normalizedRelative, readBounded, safePath } from './paths'
 import { createSettingsService } from './settings'
@@ -171,13 +171,14 @@ export function createServices(settingsFilePath: string) {
             }
           } catch (error) { index.issues.push({ path: directory, message: errorMessage(error) }) }
         }
-        for (const directory of Object.values(CONTENT_DIRECTORIES)) {
+        for (const [kind, directory] of Object.entries(CONTENT_DIRECTORIES) as Array<[ContentKind, string]>) {
           try {
             const resolved = await safePath(project.path, directory)
             if (!(await stat(resolved)).isDirectory()) { index.issues.push({ path: directory, message: `${directory} 不是目录，已跳过。` }); continue }
           } catch (error) {
-            if (directory === CONTENT_DIRECTORIES.draft && isMissing(error)) { index.issues.push({ path: directory, message: MISSING_DRAFTS_MESSAGE }); continue }
-            if (directory === CONTENT_DIRECTORIES.draft) { index.issues.push({ path: directory, message: errorMessage(error) }); continue }
+            // 草稿和 AI 日报目录可以不存在：报出目录名并跳过，不当作读取失败继续尝试。
+            index.issues.push({ path: directory, message: isMissing(error) ? missingDirectoryMessage(kind) : errorMessage(error) })
+            continue
           }
           await scan(directory, 0)
         }

@@ -9,6 +9,20 @@ import { readGit } from '../services/git'
 
 export const CONTENT_DIRECTORIES: Record<ContentKind, string> = { post: 'src/contents/post', draft: 'src/contents/drafts', 'ai-daily': 'src/contents/ai-daily' }
 export const MISSING_DRAFTS_MESSAGE = '草稿目录 src/contents/drafts 不存在。本次没有读取草稿；新建草稿时只会在当前项目内创建该目录。'
+export const MISSING_DAILY_MESSAGE = 'AI 日报目录 src/contents/ai-daily 不存在。本次没有读取 AI 日报；客户端不新建日报。'
+export const CONTENT_LABELS: Record<ContentKind, string> = { post: '正文', draft: '草稿', 'ai-daily': 'AI 日报' }
+/** A missing optional collection is a normal state, so it is reported by name instead of by raw filesystem error. */
+export function missingDirectoryMessage(kind: ContentKind): string {
+  if (kind === 'draft') return MISSING_DRAFTS_MESSAGE
+  if (kind === 'ai-daily') return MISSING_DAILY_MESSAGE
+  return `内容目录 ${CONTENT_DIRECTORIES[kind]} 不存在。`
+}
+function unavailableWarning(kind: ContentKind, error: unknown): string {
+  const label = CONTENT_LABELS[kind]
+  if (error instanceof ServiceError) return `${CONTENT_DIRECTORIES[kind]} 不是可用目录，${label}无法读取。`
+  if (isMissing(error)) return missingDirectoryMessage(kind)
+  return `无法确认${label}目录，本次没有读取${label}。`
+}
 export function contentKind(relative: string): ContentKind | null {
   const lower = relative.toLowerCase()
   if (relative.startsWith(`${CONTENT_DIRECTORIES.draft}/`) && /\.mdx?$/.test(lower)) return 'draft'
@@ -28,19 +42,19 @@ export async function inspectProject(directory: string): Promise<ProjectInfo> {
   if (!pkg || typeof pkg !== 'object' || Array.isArray(pkg)) throw new ServiceError('INVALID_PROJECT', 'package.json 格式无效。')
   const dependencies = { ...(typeof pkg.devDependencies === 'object' ? pkg.devDependencies : {}), ...(typeof pkg.dependencies === 'object' ? pkg.dependencies : {}) } as Record<string, unknown>
   if (typeof dependencies.astro !== 'string' || !dependencies.astro.trim()) throw new ServiceError('INVALID_PROJECT', 'package.json 未声明 astro 依赖。')
-  // Presence decides whether the sidebar offers a section at all; a missing 草稿 directory only
-  // removes that entry, while 正文 and AI 日报 stay required for this adapter.
+  // 只有 正文 目录是打开项目的必要条件。草稿和 AI 日报目录缺失时只记录警告，
+  // 存在情况会交给界面，侧边栏据此决定是否渲染对应入口。
   const contentPresence: Record<ContentKind, boolean> = { post: false, draft: false, 'ai-daily': false }
-  for (const kind of ['post', 'ai-daily'] as const) {
+  try { await ensureDirectory(root, CONTENT_DIRECTORIES.post); contentPresence.post = true } catch (error) {
+    if (error instanceof ServiceError && error.code === 'PATH_OUTSIDE_PROJECT') throw error
+    throw new ServiceError('INVALID_PROJECT', `缺少内容目录 ${CONTENT_DIRECTORIES.post}；本版本适配 promefire/Astro_Blog 的目录结构。`)
+  }
+  const optionalWarnings: string[] = []
+  for (const kind of ['draft', 'ai-daily'] as const) {
     try { await ensureDirectory(root, CONTENT_DIRECTORIES[kind]); contentPresence[kind] = true } catch (error) {
       if (error instanceof ServiceError && error.code === 'PATH_OUTSIDE_PROJECT') throw error
-      throw new ServiceError('INVALID_PROJECT', `缺少内容目录 ${CONTENT_DIRECTORIES[kind]}；本版本适配 promefire/Astro_Blog 的目录结构。`)
+      optionalWarnings.push(unavailableWarning(kind, error))
     }
-  }
-  let draftsWarning: string | null = null
-  try { await ensureDirectory(root, CONTENT_DIRECTORIES.draft); contentPresence.draft = true } catch (error) {
-    if (error instanceof ServiceError && error.code === 'PATH_OUTSIDE_PROJECT') throw error
-    draftsWarning = error instanceof ServiceError ? `${CONTENT_DIRECTORIES.draft} 不是可用目录，草稿无法读取。` : isMissing(error) ? MISSING_DRAFTS_MESSAGE : '无法确认草稿目录，本次没有读取草稿。'
   }
   const scripts: Record<string, string> = {}
   if (pkg.scripts && typeof pkg.scripts === 'object') {
@@ -51,7 +65,7 @@ export async function inspectProject(directory: string): Promise<ProjectInfo> {
     name: path.basename(root), path: root, adapter: 'promefire-astro-blog', astroVersion: dependencies.astro,
     packageManager: typeof pkg.packageManager === 'string' ? pkg.packageManager : null,
     scripts, git: git.info, contentDirectories: { ...CONTENT_DIRECTORIES }, contentPresence,
-    warnings: [git.info.error, draftsWarning].filter((item): item is string => !!item),
+    warnings: [git.info.error, ...optionalWarnings].filter((item): item is string => !!item),
   }
 }
 

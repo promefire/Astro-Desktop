@@ -1,5 +1,15 @@
 # 测试记录
 
+## 2026-10-16：只要求正文目录，草稿与 AI 日报目录改为可选
+
+按用户要求不做完整回归，只跑本次改动直接相关的用例。
+
+- `npm run typecheck` 通过，`npm run build` 通过。
+- `npx vitest run tests/services.test.ts`：20 项通过。该文件里原本断言「删除 `src/contents/ai-daily` 后打开项目被拒绝」的用例与本次新规则冲突，已改写为：删除 `drafts` 与 `ai-daily` 后打开成功、`contentPresence` 为 `{ post: true, draft: false, 'ai-daily': false }`、两条警告分别点名这两个目录、`content.list()` 仍能列出正文并把缺失目录报成 issue，最后删除 `post` 仍然拒绝打开并提示 `src/contents/post`。
+- `npx playwright test tests/e2e/sidebar-sections.spec.ts`：1 项通过。在原有「三目录」「缺少 drafts」两个项目之外增加「只有 `src/contents/post`」的项目：项目能打开，切换器显示新项目名，「全部内容」与「正文」入口保留，草稿与 AI 日报入口数量为 0，正文文章仍能列出。
+- 未运行其他用例；已确认不受影响：`tests/real-blog.test.ts` 与 `tests/e2e/desktop.spec.ts` 都按 `draftsExist` 动态比较草稿目录的 issue，真实博客三个目录俱全；草稿相关用例本来就没有创建 `drafts` 目录。
+- 没有改写 `F:\blog\Astro_Blog`。
+
 ## 2026-10-16：侧边栏入口跟随内容目录
 
 按用户要求只跑新增功能的用例，不执行完整测试套件。

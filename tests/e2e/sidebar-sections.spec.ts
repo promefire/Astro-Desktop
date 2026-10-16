@@ -22,6 +22,7 @@ test('renders sidebar sections for the content directories that exist', async ()
   const root = await mkdtemp(path.join(tmpdir(), 'astro-sections-e2e-'))
   const full = await blog(root, '三个目录', ['post', 'drafts', 'ai-daily'])
   const noDrafts = await blog(root, '没有草稿目录', ['post', 'ai-daily'])
+  const onlyPost = await blog(root, '只有正文目录', ['post'])
   const env: Record<string, string> = { ...Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)), ASTRO_DESKTOP_USER_DATA: path.join(root, 'profile') }
   delete env.ELECTRON_RUN_AS_NODE
   delete env.ELECTRON_RENDERER_URL
@@ -47,6 +48,16 @@ test('renders sidebar sections for the content directories that exist', async ()
     await expect(section('全部内容')).toBeVisible()
     await expect(section('正文')).toBeVisible()
     await expect(section('AI 日报')).toBeVisible()
+
+    // 只有 src/contents/post 的项目也能打开：正文和全部内容保留，其余入口不渲染。
+    await app.evaluate(({ dialog }, directory) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [directory] }) }, onlyPost)
+    await page.getByRole('button', { name: '打开项目', exact: true }).click()
+    await expect(page.locator('.project-switcher-text strong')).toHaveText('只有正文目录')
+    await expect(section('全部内容')).toBeVisible()
+    await expect(section('正文')).toBeVisible()
+    await expect(section('草稿')).toHaveCount(0)
+    await expect(section('AI 日报')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '查看文章：文章', exact: true })).toBeVisible()
 
     // 回到三目录项目后草稿入口重新出现，说明渲染跟随目录而不是只算一次。
     await app.evaluate(({ dialog }, directory) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [directory] }) }, full)
