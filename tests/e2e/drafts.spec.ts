@@ -47,9 +47,16 @@ test('create ordinary drafts through the desktop, preserve failures, and never o
     await modal.getByRole('button', { name: '创建草稿', exact: true }).click()
     await expect(modal).not.toBeVisible()
     await expect(page).toHaveURL(/#\/library\/drafts$/)
-    await expect(page.locator('.created-banner')).toContainText('草稿已创建')
+    await expect(page.locator('.created-toast')).toContainText('草稿已创建')
     await expect(page.getByRole('region', { name: '文章编辑工作区', exact: true })).toBeVisible()
     await expect(page.getByRole('region', { name: '文章属性', exact: true })).toContainText('未回车标签')
+    // 提示是浮层：出现和消失都不会把下方内容推来推去，并且 3 秒后自己消失。
+    const editorTop = async () => (await page.locator('.editor-heading').boundingBox())!.y
+    const topWithToast = await editorTop()
+    await expect(page.locator('.created-toast')).toBeVisible()
+    await page.screenshot({ path: testInfo.outputPath('create-toast.png'), animations: 'disabled' })
+    await expect(page.locator('.created-toast')).toHaveCount(0, { timeout: 6000 })
+    expect(await editorTop()).toBeCloseTo(topWithToast, 0)
     const filename = 'Windows- Astro 新文章.md'
     const source = await readFile(path.join(draftsDir, filename), 'utf8')
     expect(source).not.toContain('draft:')

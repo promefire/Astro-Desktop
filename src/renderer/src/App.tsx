@@ -158,6 +158,13 @@ function App() {
     return () => media.removeEventListener('change', apply)
   }, [settings.theme])
 
+  // 创建提示是浮层，3 秒后自动消失；新提示会重新计时。
+  useEffect(() => {
+    if (!createdNotice) return
+    const timer = setTimeout(() => setCreatedNotice(null), 3000)
+    return () => clearTimeout(timer)
+  }, [createdNotice])
+
   const selectArticle = useCallback((path: string | null) => {
     if (selectedRef.current === path) return
     readId.current += 1
@@ -407,7 +414,7 @@ function App() {
       </header>
 
       {error && <div className="error-banner" role="alert"><AlertCircle size={17} /><span>{error}</span><Button size="icon" variant="ghost" aria-label="关闭错误提示" onClick={() => setError(null)}><X size={15} /></Button></div>}
-      {createdNotice && <div className="created-banner" role="status"><Check size={17} /><span>{createdNotice}</span><Button size="icon" variant="ghost" aria-label="关闭创建提示" onClick={() => setCreatedNotice(null)}><X size={15} /></Button></div>}
+      {createdNotice && <div className="created-toast" role="status"><Check size={17} /><span>{createdNotice}</span><Button size="icon" variant="ghost" aria-label="关闭创建提示" onClick={() => setCreatedNotice(null)}><X size={15} /></Button></div>}
 
       {!api ? <main className="welcome-content"><EmptyState icon={<Monitor size={32} />} title="请在 Astro Desktop 中打开" description="本地文件系统与目录选择需要 Electron 桌面环境。请在项目目录运行 npm run dev 启动桌面应用。" /></main>
         : initializing ? <main className="welcome-content"><EmptyState icon={<LoaderCircle size={28} className="spin" />} title="正在打开工作空间" description="读取本地设置与文章索引…" /></main>
