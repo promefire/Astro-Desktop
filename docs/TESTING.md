@@ -1,5 +1,19 @@
 # 测试记录
 
+## 2026-10-16：属性栏只在编辑器内出现，并加收缩手柄
+
+- `npm run typecheck` 通过，`npm run build` 通过。
+- `npm test`：**95 通过、1 跳过**（未设置 `ASTRO_BLOG_TEST_PATH` 的真实博客专项）。
+- `npx playwright test`：**16 项通过**，新增 `tests/e2e/inspector.spec.ts`，其余 15 项（含上一轮新增的撤回测试和原有的发布测试）在同一次运行中通过。
+- 新增测试用真实 Electron 打开隔离博客，读取 `.library-layout`、`.inspector`、`.inspector-toggle` 的实际渲染矩形，而不是只断言元素存在：
+  - 列表页没有 `文章属性` region，也没有手柄，`.library` 的右边缘与内容行右边缘重合（列表用满宽度）。
+  - 展开时手柄的垂直中心与内容行中心相差不超过 1.5px，水平中心与属性栏左边缘相差不超过 1.5px。
+  - 收起后 `文章属性` region 消失，手柄改名为「展开文章属性」，垂直位置不变，右边缘与内容行右边缘相差不超过 1.5px，且左边缘仍在窗口内。
+  - 再展开后手柄回到属性栏左边缘；返回列表后手柄再次消失。
+  - 全程没有未捕获的页面错误。
+- 截图写到 `test-results/`（不进入提交），已人工检查展开、收起和列表三种状态的实际画面：手柄跨在分隔线上、箭头方向正确、列表页整行可用。
+- 没有改写 `F:\blog\Astro_Blog`。
+
 ## 2026-10-16：正文撤回为草稿
 
 - `npm run typecheck` 通过，`npm run build` 通过（Main / Preload / Renderer）。
