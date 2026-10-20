@@ -57,4 +57,71 @@
 .muya-editor-host::-webkit-scrollbar { width: 8px; height: 8px; }
 .muya-editor-host::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
+/* Muya "/" 快捷菜单 —— 对齐项目设计体系 */
+.muya-editor-host {
+  --float-bg-color: var(--surface);
+  --float-hover-color: var(--hover);
+  --float-border-color: var(--border);
+  --float-shadow: 0 4px 16px color-mix(in srgb, var(--text) 12%, transparent), 0 1px 3px color-mix(in srgb, var(--text) 8%, transparent);
+  --icon-color: var(--muted);
+}
+.mu-quick-insert {
+  width: 260px; max-height: 300px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--float-shadow);
+  padding: 6px;
+  font-family: inherit;
+}
+.mu-quick-insert .title {
+  padding: 8px 12px 6px;
+  font-size: 10px; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--muted);
+  background: transparent;
+}
+.mu-quick-insert .item {
+  height: 36px;
+  border-radius: 6px;
+  padding: 0 8px;
+  gap: 8px;
+}
+.mu-quick-insert .active,
+.mu-quick-insert .item:hover {
+  background: var(--accent-soft);
+}
+.mu-quick-insert .item:hover .mu-quick-insert .big-title,
+.mu-quick-insert .active .big-title {
+  color: var(--accent-text);
+}
+.mu-quick-insert .icon-container {
+  width: 20px; height: 20px;
+  margin-left: 0; margin-right: 0;
+  border-radius: 4px;
+  color: var(--accent);
+}
+.mu-quick-insert .icon-container > i.icon {
+  width: 16px; height: 16px;
+  color: var(--accent);
+}
+.mu-quick-insert .big-title {
+  font-size: 13px;
+  color: var(--text);
+}
+.mu-quick-insert .description {
+  font-size: 11px;
+  color: var(--muted);
+}
+.mu-quick-insert .short-cut {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+.mu-quick-insert .no-result {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 16px 0;
+}
+
 @media (max-width: 1100px) { .editor-heading { padding: 12px; gap: 8px; }.editor-toolbar { padding: 8px; }.editor-save-state { display: none; }.editor-mode-switch [role="tab"] { padding: 0 8px; }.source-pane-label { padding: 6px 12px 0; } }
