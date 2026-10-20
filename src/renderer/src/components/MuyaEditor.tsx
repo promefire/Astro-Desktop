@@ -1,6 +1,10 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
-import { Muya } from '@muyajs/core'
+import { Muya, ParagraphQuickInsertMenu } from '@muyajs/core'
 import '@muyajs/core/lib/core.css'
+
+// 注册 Marktext 同款 "/" 快捷插入菜单（WYSIWYG 模式）。
+// Muya 的 plugins 是类级静态数组，全局只需注册一次。
+Muya.use(ParagraphQuickInsertMenu)
 
 // Muya's Markdown parser expects LF; leave the original source in ArticleEditor.
 const editorMarkdown = (source: string) => source.replace(/\r\n|\r/g, '\n')
