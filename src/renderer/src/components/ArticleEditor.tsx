@@ -159,6 +159,12 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
   }
   useImperativeHandle(ref, () => ({ save, discard, isDirty: () => dirtyRef.current, isBusy: () => workingRef.current }))
 
+  // 每 1 分钟自动保存（save 内部已做幂等判断：未修改/正在保存/弹窗时跳过）
+  useEffect(() => {
+    const timer = setInterval(() => { void save() }, 60_000)
+    return () => clearInterval(timer)
+  }, [])
+
   const reload = async (): Promise<boolean> => {
     workingRef.current = true; setWorking(true); stopTimer(); setError('')
     try {
