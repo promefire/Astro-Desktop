@@ -59,9 +59,10 @@ test('collapses the left sidebar to icons from a handle on its right edge', asyn
     await expect(page.locator('.nav-item > span').first()).toBeHidden()
     await expect(page.getByText('内容库')).toBeHidden()
     await expect(page.locator('.sidebar-caption')).toHaveCount(0)
-    // 当前存在的内容库入口加文章统计，底部项目设置图标全部保留。
+    // 当前存在的内容库入口加文章统计，底部项目设置和主题切换图标全部保留。
     await expect(page.locator('.main-nav .nav-item svg')).toHaveCount(4)
-    await expect(page.locator('.sidebar-bottom .nav-item svg')).toHaveCount(1)
+    await expect(page.locator('.sidebar-bottom .nav-item svg')).toHaveCount(2)
+    await expect(page.getByRole('button', { name: '切换深色模式', exact: true })).toBeVisible()
     await expect(page.locator('.sidebar-toggle svg')).toHaveCount(1)
     await expect.poll(async () => (await geometry(page)).sidebarWidth).toBeLessThanOrEqual(70)
     const collapsed = await geometry(page)
