@@ -1,82 +1,93 @@
 # Astro Desktop
 
-面向 `promefire/Astro_Blog` 的 Windows 本地博客工作台。支持真实项目接入、正文 / 草稿 / AI 日报读取、新建草稿、双模式正文编辑、文章图片、在草稿与正文目录之间互转、安全保存与恢复、用系统默认程序打开当前文章、启动当前博客的本地开发预览、把本地修改提交并推送到远程仓库，以及按目录统计文章。Markdown / MDX 文件是唯一内容来源，没有模拟数据或数据库。
+面向 [promefire/Astro_Blog](https://github.com/promefire/Astro_Blog) 的 Windows 本地博客工作台。
 
-客户端仓库：[promefire/Astro-Desktop](https://github.com/promefire/Astro-Desktop)。每完成一项独立功能，验证通过后提交并推送；具体约定见 [AGENTS.md](AGENTS.md)。
+Astro Desktop 直接读取博客目录中的 Markdown / MDX 文件，提供文章浏览、编辑、草稿管理、日报查看、本地预览和 Git 同步。内容以博客文件为唯一来源，不使用模拟文章数据，也不建立独立内容数据库。
 
-## 启动
+![Astro Desktop](docs/images/desktop-light.png)
 
-需要 Windows 10/11、Node.js 22.12+（本次使用 24.16.0）、npm；安装 Git 可读取分支与文件状态。
+## 功能
+
+- **项目接入**：选择本地 Astro 博客目录，检查 Astro 依赖和内容目录，支持最近项目。
+- **内容管理**：读取正文、草稿和 AI 日报；支持搜索、排序、分页、分类 / 标签筛选及文件定位。
+- **文章编辑**：提供所见即所得和 Markdown 源码两种模式。支持 Ctrl+S 保存、撤销重做、查找替换和未保存修改保护。
+- **草稿工作流**：新建草稿；在 `src/contents/drafts` 与 `src/contents/post` 之间发布或撤回文章，并处理同名图片目录。
+- **安全保存与恢复**：检测磁盘版本冲突，保存前创建本地备份，支持恢复记录和导出副本。
+- **图片处理**：导入本地图片并转换为 WebP；可选接入 S3 / R2 存储。
+- **本地预览**：在博客目录执行真实的 `npm run dev`，显示启动状态、日志和本地地址。
+- **Git 同步**：拉取远程、查看改动、提交并推送。客户端不会强制推送，也不会把推送结果当作网站已部署。
+- **文章统计**：统计正文、草稿和日报数量，并提供正文 / 草稿的分类和标签排行。
+- **桌面设置**：支持浅色、深色和跟随系统主题；可配置编辑模式的 HTML 显示。
+
+## 适配的博客目录
+
+选择的目录需要满足以下条件：
+
+- 包含声明 Astro 依赖的 `package.json`
+- 包含正文目录 `src/contents/post`
+- 草稿目录 `src/contents/drafts` 和日报目录 `src/contents/ai-daily` 可以不存在
+
+目录类型由文件所在目录决定，Frontmatter 中的 `draft` 字段不会改变文章所属列表。客户端不会安装博客依赖，不会自动执行博客脚本，也不会修改原始博客项目的业务代码。
+
+## 开始使用
+
+环境要求：Windows 10/11、Node.js 22.12+、npm。Git 为可选依赖；安装后可显示分支和文件状态，并使用 Git 同步功能。
 
 ```powershell
-cd F:\astroHub
+git clone https://github.com/promefire/Astro-Desktop.git
+cd Astro-Desktop
 npm ci
 npm run dev
 ```
 
-开发服务固定使用 `127.0.0.1:5187`。如果端口已占用，命令会明确报错；请关闭自己先前启动的 Astro Desktop 开发会话后重试。
+启动后点击「选择博客目录」，选择 Astro 博客根目录。
 
-需要并行运行隔离会话时，可设置 `$env:ASTRO_DESKTOP_DEV_PORT = '5188'` 指定其他端口；仍严格检查占用，不会自动回退。E2E 开发测试使用独立空闲端口，保留你已启动的客户端。
-
-首次启动点击「选择博客目录」，选择博客根目录，例如 `F:\blog\Astro_Blog`。目录须有声明 Astro 依赖的 `package.json` 和 `src/contents/post`；`src/contents/drafts` 与 `src/contents/ai-daily` 可以不存在，缺失时只提示，侧边栏不显示对应入口。选择项目时不会安装博客依赖，也不会自动执行博客脚本。关闭后重启会恢复最近项目。
+## 开发命令
 
 ```powershell
-npm run typecheck  # TypeScript 严格检查
-npm test          # 文件系统、解析、设置、安全边界等服务测试
-npm run build     # 构建 Main / Preload / Renderer
-npm start         # 启动构建后的应用
-npm run test:e2e  # 构建后运行真实 Electron 验证
+npm run dev         # 启动 Electron 开发环境
+npm run typecheck   # TypeScript 严格检查
+npm test            # 单元和文件系统测试
+npm run build       # 构建 Main / Preload / Renderer
+npm start           # 启动构建后的应用
+npm run test:e2e    # 构建后运行 Electron E2E 测试
+npm run check       # 类型检查、测试和构建
 ```
 
-读取 E2E 默认使用 `F:\blog\Astro_Blog`；其他位置通过 `$env:ASTRO_BLOG_TEST_PATH = 'D:\你的博客'` 指定。新建与编辑测试仅写入隔离的临时博客，原始博客只读并在前后比较内容 SHA-256；不会运行原博客构建或推送 Git。
+开发端口默认为 `127.0.0.1:5187`，可通过 PowerShell 临时设置 `ASTRO_DESKTOP_DEV_PORT` 使用其他端口。
 
-要同时运行真实博客服务专项测试：先设置 `ASTRO_BLOG_TEST_PATH`，再执行 `npm test`。没有该变量时，只运行隔离临时目录测试，并明确跳过真实博客专项。
-
-若 Electron 二进制下载因网络失败，可在当前 PowerShell 会话使用镜像重新安装（仍校验包内 SHA-256）：
-
-```powershell
-$env:ELECTRON_MIRROR = 'https://npmmirror.com/mirrors/electron/'
-node node_modules/electron/install.js
-```
-
-## 当前能力
-
-- 原生目录选择、Astro 项目验证、最近项目、自动恢复及失效目录报错。
-- 递归读取正文 `src/contents/post/**/*.{md,mdx}`、草稿 `src/contents/drafts/**/*.{md,mdx}` 与日报 `src/contents/ai-daily/**/*.md`。所属列表由目录决定。
-- Frontmatter 标题、原始发布日期、分类、标签、普通文章草稿与独立日报属性；异常文件可定位，不阻塞其他文章。
-- 搜索、类型 / 草稿 / 分类 / 标签筛选、排序、分页。打开文章后右侧显示磁盘上的已保存属性，可用属性栏左边缘的箭头收起。
-- 「编辑模式」使用 Muya 所见即所得，「源码模式」使用 CodeMirror 6 直接编辑 Markdown 正文，两者共用同一份正文；撤销重做、查找替换、Ctrl+S 保存。`.mdx` 只使用源码模式。
-- 检测外部修改并停止覆盖，保存前备份，未保存导航与退出保护，本地编辑恢复记录和另存副本。
-- 用 Windows 为 `.md` / `.mdx` 登记的默认程序打开当前文章。打开后编辑区暂停，重新加载后才继续编辑。
-- 顶栏「本地预览」检查 Node / npm / dev 脚本 / Astro 依赖后，在当前博客目录执行 `npm run dev`，显示真实状态、日志和本地地址，并可停止本次进程。详见 [本地预览](docs/PREVIEW.md)。
-- 新建草稿：标题必填，标签、单个分类和摘要可选；写入 `src/contents/drafts/`，不写 `draft` 字段，同名自动加序号，创建后进入草稿。AI 日报不提供新增。正文目录不表示已经发布。
-- 目录互转：草稿编辑器提供「发布到正文」，正文编辑器提供「撤回为草稿」。两者把文章文件和同名图片目录一起处理，相对引用不用改写；共享图片改为复制并保留原目录。目标冲突、保存失败、磁盘版本冲突时停止，移动中断会回滚。只改变本地目录，不提交、不构建、不部署，也不改写 frontmatter 里的 `draft` 字段。草稿目录及其子目录缺失时在项目内创建，遇到链接拒绝写入。
-- 文章列表右侧的三点菜单可以删除当前文章。必须再次确认后才从磁盘删除，应用内不能恢复。
-- 顶栏「推送」先拉取远程，再列出本次会提交的仓库改动并要求填写提交信息，确认后依次执行 `git add .`、`git commit`、`git push`。提交范围是仓库全部改动，不做选择性暂存；拉取失败即停止，工作区已有未解决合并冲突时拒绝提交；凭据交给系统 Git 凭据管理器或 SSH agent。推送不等于已经上线，部署由仓库自己的 Actions 完成。
-- 文章统计：正文、草稿、AI 日报数量，以及正文和草稿的分类 / 标签排行。点击数量或排行进入同一口径的列表。详见 [文章统计](docs/STATS.md)。
-- Git 本地状态、当前分支及脱敏远程地址；刷新与系统资源管理器定位。
-- 浅色、深色、跟随系统外观，设置保存在 Electron `userData` 下。
-
-在全部内容、正文或草稿页面点击「新建文章」。文件写入 `src/contents/drafts/`，不写 `draft` 字段。创建需要博客位于支持硬链接的磁盘（如 NTFS）；失败时保留输入供修正重试。草稿没有站点路由时，本地预览会说明原因，不会编造地址。
-
-点击文章进入编辑器。右侧属性当前只读，修改标题、分类等需编辑源码中的 Frontmatter；保存成功后更新右栏。编辑模式不执行 MDX 组件和表达式，HTML 显示由设置里的开关决定。要看站点效果，先在顶栏启动本地预览，再用「站点预览」。恢复记录在停止输入 600 ms 后写入客户端目录，文章仍需手动保存。详见 [编辑与恢复](docs/EDITOR.md) 与 [本地预览](docs/PREVIEW.md)。
-
-当前不实现删除后的应用内恢复、属性可视化编辑、生产构建、月度趋势、访问量、克隆、按文件选择性提交、应用内解决合并冲突和部署回执。完整顺序见 [开发计划](docs/ROADMAP.md)。
-
-## 目录
+## 项目结构
 
 ```text
 src/
-  main/                 Electron 主进程、IPC、文件与 Git 服务
-    adapters/           promefire Astro Blog 专用适配
-    services/           项目、文章、新建、安全保存、恢复、副本、设置、本地预览、路径边界
-  preload/              受限类型化 API 桥接
-  renderer/             React 路由、布局、列表、CodeMirror、预览、详情与设置
-  shared/               IPC 数据契约、后续阶段服务接口
-tests/                  单元 / 文件系统集成测试、Electron E2E
-docs/                   需求、架构、研究、功能、开发与测试记录
+  main/       Electron 主进程、文件服务、Git 和本地预览
+  preload/    受限的类型化 API 桥接
+  renderer/   React 界面、路由、编辑器和设置
+  shared/     数据契约和共享逻辑
+tests/        单元、文件系统集成和 Electron E2E 测试
+docs/         架构、功能、开发和测试记录
 ```
 
-`out/` 是构建结果；`.reference/` 是开发时的参考源码快照，不是运行依赖。Windows 安装包、electron-builder 接入和签名在后续打包阶段实施，本阶段通过开发命令或构建后的 `npm start` 运行。
+## 安全边界
 
-详见 [架构](docs/ARCHITECTURE.md)、[功能状态](docs/FEATURES.md)、[开发记录](docs/DEVELOPMENT.md)、[测试结果](docs/TESTING.md) 与 [仓库研究](docs/RESEARCH.md)。原始 [功能需求](docs/ASTRO_DESKTOP_FEATURES.md) 保留为规划，不代表已实现。
+- Renderer 不直接访问文件系统、Node.js 或 Electron IPC。
+- 所有文章路径都限制在用户授权的博客目录和对应内容目录内。
+- 拒绝路径穿越、符号链接 / junction 逃逸和不支持的文件类型。
+- 读取和编辑不会自动提交、推送、构建或部署博客。
+- Git 凭据交由系统凭据管理器或 SSH agent 处理，客户端不保存令牌。
+
+## 当前限制
+
+当前未提供 Windows 安装包、属性可视化编辑、删除后的应用内恢复、生产构建、访问量统计、按文件选择性提交、应用内冲突解决和部署状态回执。
+
+详细功能状态和测试记录见：
+
+- [功能状态](docs/FEATURES.md)
+- [架构说明](docs/ARCHITECTURE.md)
+- [开发记录](docs/DEVELOPMENT.md)
+- [测试记录](docs/TESTING.md)
+- [开发计划](docs/ROADMAP.md)
+
+## License
+
+当前仓库未声明开源许可证。
