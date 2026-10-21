@@ -175,7 +175,9 @@ test('markdown articles switch between Muya and CodeMirror without dropping or s
     await expect(page.locator('.muya-editor-host')).not.toContainText('乙文章标记')
     await expect(page.locator('.mu-editor')).toHaveCount(1)
 
+    await page.getByRole('link', { name: '项目设置', exact: true }).click()
     await page.getByRole('button', { name: '切换深色主题', exact: true }).click()
+    await page.goBack()
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
     await page.getByRole('tab', { name: '源码模式', exact: true }).click()
     expect(await source.evaluate(element => getComputedStyle(element).color)).toBe(await page.locator('.article-editor').evaluate(element => getComputedStyle(element).color))

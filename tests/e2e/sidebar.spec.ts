@@ -58,9 +58,9 @@ test('collapses the left sidebar to icons from a handle on its right edge', asyn
     // 收缩后：只剩图标，文字和计数隐藏，宽度收紧，手柄跟着贴到新的右边缘。
     await expect(page.locator('.nav-item > span').first()).toBeHidden()
     await expect(page.getByText('内容库')).toBeHidden()
-    await expect(page.locator('.sidebar-caption > span')).toHaveCount(0)
-    // 5 个内容库入口（含文章统计）加底部的项目设置，图标全部保留。
-    await expect(page.locator('.main-nav .nav-item svg')).toHaveCount(5)
+    await expect(page.locator('.sidebar-caption')).toHaveCount(0)
+    // 当前存在的内容库入口加文章统计，底部项目设置图标全部保留。
+    await expect(page.locator('.main-nav .nav-item svg')).toHaveCount(4)
     await expect(page.locator('.sidebar-bottom .nav-item svg')).toHaveCount(1)
     await expect(page.locator('.sidebar-toggle svg')).toHaveCount(1)
     await expect.poll(async () => (await geometry(page)).sidebarWidth).toBeLessThanOrEqual(70)
