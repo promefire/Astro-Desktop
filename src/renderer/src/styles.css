@@ -78,8 +78,6 @@ code, pre { font-family: "Cascadia Code", "Consolas", "Microsoft YaHei UI", mono
 .sidebar.is-collapsed .main-nav { margin-top: 30px; }
 .sidebar.is-collapsed .nav-item { justify-content: center; gap: 0; padding: 10px 0; }
 .sidebar.is-collapsed .nav-item > span { display: none; }
-.sidebar.is-collapsed .sidebar-caption { justify-content: center; padding: 10px 0 0; }
-.sidebar.is-collapsed .sidebar-caption > span { display: none; }
 .brand { display: flex; align-items: center; gap: 9px; margin: 1px 8px 27px; }
 .brand-symbol { width: 32px; height: 34px; display: grid; place-items: center; color: var(--accent); }
 .brand strong { font-size: 15px; font-weight: 680; letter-spacing: -.6px; white-space: nowrap; }
@@ -100,7 +98,7 @@ code, pre { font-family: "Cascadia Code", "Consolas", "Microsoft YaHei UI", mono
 .nav-count { margin-left: auto; color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
 .nav-item.is-active .nav-count { color: var(--accent-text); }
 .sidebar-bottom { margin-top: auto; padding-top: 30px; }
-.sidebar-caption { display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: var(--muted); margin: 12px 0 0; padding: 10px 5px 0 12px; border-top: 1px solid var(--border); }
+.sidebar-caption { display: flex; justify-content: flex-end; align-items: center; margin: 12px 0 0; padding: 10px 5px 0 12px; border-top: 1px solid var(--border); }
 .workspace { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .topbar { min-height: 63px; height: 63px; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; padding: 0 26px; background: var(--surface); border-bottom: 1px solid var(--border); gap: 18px; }
 .project-context { display: flex; min-width: 0; align-items: center; gap: 10px; font-size: 12px; }
@@ -223,8 +221,6 @@ dd { margin: 0; overflow-wrap: anywhere; }
 .frontmatter-details { margin-top: 26px; border-top: 1px solid var(--border); padding-top: 16px; color: var(--secondary); font-size: 10px; }
 .frontmatter-details summary { cursor: pointer; }
 .frontmatter-details pre { overflow-x: auto; font-size: 10px; background: var(--subtle); border-radius: 4px; padding: 10px; line-height: 1.7; }
-.local-state-note { display: flex; align-items: flex-start; gap: 6px; line-height: 1.7; font-size: 9px; color: var(--muted); margin: 22px 0 0; }
-.local-state-note svg { margin-top: 2px; }
 .source-body { padding: 17px 0 0; display: flex; flex-direction: column; overflow: hidden; }
 .source-caption { display: flex; justify-content: space-between; padding: 0 23px 12px; font-size: 9px; color: var(--muted); }
 .source-code { flex: 1; min-height: 0; overflow: auto; background: var(--canvas); margin: 0; padding: 14px 16px; border-top: 1px solid var(--border); color: var(--secondary); font-size: 10px; line-height: 1.9; tab-size: 2; }

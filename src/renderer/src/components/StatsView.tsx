@@ -23,7 +23,7 @@ export function StatsView({ projectName, projectPath, scannedAt, stats, issues, 
 }) {
   const empty = stats.posts + stats.drafts + stats.daily === 0 && issues.length === 0
   return <section className="stats-page" aria-label="文章统计">
-    <div className="library-heading"><div><div className="heading-overline">本地索引</div><h1>文章统计</h1><p>统计当前项目已读取的文件。正文、草稿和日报按目录分开，不看 draft 字段，也不表示已经发布或有访问量。</p></div></div>
+    <div className="library-heading"><div><h1>文章统计</h1></div></div>
     <p className="stats-meta"><span>{projectName}</span><span title={projectPath}>{projectPath}</span>{scannedAt && <span>更新于 {formatTime(scannedAt)}</span>}</p>
     {busy && !scannedAt ? <p className="stats-note">正在读取文章索引…</p> : empty ? <p className="stats-note">这个项目还没有读到正文、草稿或 AI 日报。</p> : <>
       <div className="stats-counts">
@@ -68,6 +68,6 @@ function Ranking({ title, noun, items, empty, onOpen }: { title: string; noun: s
         <span className="stats-rank-count">{item.count}</span>
       </button>)}
     </div>}
-    {visible.length > PAGE_SIZE && <div className="stats-pager"><span>第 {current} / {pages} 页，共 {visible.length} 项，不是只显示前几项</span><div><Button size="icon" variant="ghost" aria-label={`上一页${noun}`} disabled={current <= 1} onClick={() => setPage(current - 1)}><ChevronLeft size={16} /></Button><Button size="icon" variant="ghost" aria-label={`下一页${noun}`} disabled={current >= pages} onClick={() => setPage(current + 1)}><ChevronRight size={16} /></Button></div></div>}
+    {visible.length > PAGE_SIZE && <div className="stats-pager"><span>第 {current} / {pages} 页，共 {visible.length} 项</span><div><Button size="icon" variant="ghost" aria-label={`上一页${noun}`} disabled={current <= 1} onClick={() => setPage(current - 1)}><ChevronLeft size={16} /></Button><Button size="icon" variant="ghost" aria-label={`下一页${noun}`} disabled={current >= pages} onClick={() => setPage(current + 1)}><ChevronRight size={16} /></Button></div></div>}
   </section>
 }

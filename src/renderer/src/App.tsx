@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { NavLink, useBlocker, useLocation, useNavigate } from 'react-router-dom'
 import {
   AlertCircle, ArrowDownUp, ArrowUpRight, BookOpen, ChartColumn, Check, ChevronLeft, ChevronRight,
-  CircleHelp, Clock3, CloudUpload, File, FileText, Folder, FolderOpen, GitBranch, Globe, Layers3,
+  Clock3, CloudUpload, File, FileText, Folder, FolderOpen, GitBranch, Globe, Layers3,
   LoaderCircle, Monitor, Moon, RefreshCw, Search,
   Settings2, Sparkles, Sun, Tag, Trash2, X, Plus,
 } from 'lucide-react'
@@ -402,7 +402,7 @@ function App() {
       </nav>
       <div className="sidebar-bottom">
         <NavLink to="/settings" className={({ isActive }) => cn('nav-item', isActive && 'is-active')} aria-label="项目设置" title="项目设置"><Settings2 size={17} /><span>项目设置</span></NavLink>
-        <div className="sidebar-caption"><span>本地文件 · 直接读取</span><Button size="icon" variant="ghost" aria-label={settings.theme === 'dark' ? '切换浅色主题' : '切换深色主题'} title={settings.theme === 'dark' ? '切换浅色主题' : '切换深色主题'} disabled={!api || themeBusy} onClick={() => void changeTheme(settings.theme === 'dark' ? 'light' : 'dark')}>{settings.theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}</Button></div>
+        <div className="sidebar-caption"><Button size="icon" variant="ghost" aria-label={settings.theme === 'dark' ? '切换浅色主题' : '切换深色主题'} title={settings.theme === 'dark' ? '切换浅色主题' : '切换深色主题'} disabled={!api || themeBusy} onClick={() => void changeTheme(settings.theme === 'dark' ? 'light' : 'dark')}>{settings.theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}</Button></div>
       </div>
       <button type="button" className="sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-expanded={sidebarOpen} aria-controls="app-sidebar" aria-label={sidebarOpen ? '收起侧边栏' : '展开侧边栏'} title={sidebarOpen ? '收起侧边栏' : '展开侧边栏'}>{sidebarOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}</button>
     </aside>
@@ -423,7 +423,7 @@ function App() {
               : isStats ? <StatsView projectName={project.name} projectPath={project.path} scannedAt={index.scannedAt} stats={stats} issues={index.issues} busy={busy} onOpen={openLibrary} />
               : <main className="library-layout">
                 <section className="library" aria-label="文章库" hidden={!!selectedPath}>
-                  <div className="library-heading"><div><div className="heading-overline">内容管理</div><h1>{viewLabels[view]} <span>{filtered.length}</span></h1><p>{view === 'daily' ? '独立读取 AI 日报 collection 的内容与字段。' : view === 'drafts' ? '来自 src/contents/drafts。即使文件没有 draft 字段，或写了 draft: false，也属于草稿。' : view === 'posts' ? '来自 src/contents/post 的正文，不表示已经发布到线上。draft 字段不会把正文移入草稿。' : view === 'writing' ? '正文和草稿的联合范围，不含 AI 日报。分类和标签筛选与文章统计使用同一口径。' : '从正文、草稿和 AI 日报目录读取 Markdown 与 MDX。'}</p></div></div>
+                  <div className="library-heading"><div><h1>{viewLabels[view]} <span>{filtered.length}</span></h1></div></div>
                   <div className="library-toolbar">
                     {view !== 'daily' && <Button variant="primary" disabled={busyAll} onClick={() => setCreateOpen(true)}><Plus size={16} />新建文章</Button>}
                     <div className="search-input"><Search size={16} /><Input type="search" placeholder="搜索标题或文件名…" aria-label="搜索文章" value={search} onChange={event => setSearch(event.target.value)} /></div>
@@ -443,7 +443,7 @@ function App() {
                 {selectedPath && <div className={cn('inspector-shell', !inspectorOpen && 'is-collapsed')}><button type="button" className="inspector-toggle" onClick={() => setInspectorOpen(!inspectorOpen)} aria-expanded={inspectorOpen} aria-controls="article-inspector" aria-label={inspectorOpen ? '收起文章属性' : '展开文章属性'} title={inspectorOpen ? '收起文章属性' : '展开文章属性'}>{inspectorOpen ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}</button>{inspectorOpen && <ArticleInspector article={selectedArticle} document={document} loading={documentLoading || busy} error={documentError} onReveal={() => selectedPath && void runAction(desktop => desktop.revealArticle(selectedPath))} />}</div>}
               </main>}
 
-      <footer className="statusbar"><div><span className={cn('status-dot', project && 'is-connected')} /><span>{busyAll ? '正在处理本地项目…' : project ? '已连接本地项目' : '尚未连接项目'}</span>{project && <span className="status-path" title={project.path}>{project.path}</span>}</div><div>{index.scannedAt && <span>更新于 {new Date(index.scannedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>}<span>本地内容</span></div></footer>
+      <footer className="statusbar"><div><span className={cn('status-dot', project && 'is-connected')} /><span>{busyAll ? '正在处理本地项目…' : project ? '已连接本地项目' : '尚未连接项目'}</span>{project && <span className="status-path" title={project.path}>{project.path}</span>}</div><div>{index.scannedAt && <span>更新于 {new Date(index.scannedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>}</div></footer>
     </div>
     {createOpen && project && <CreateDraftDialog categories={[...new Set(index.articles.filter(article => article.kind !== 'ai-daily').map(article => article.category).filter((value): value is string => !!value))].sort((a, b) => a.localeCompare(b, 'zh-CN'))} availableTags={[...new Set(index.articles.filter(article => article.kind !== 'ai-daily').flatMap(article => article.tags))].sort((a, b) => a.localeCompare(b, 'zh-CN'))} onCreate={createDraft} onClose={() => setCreateOpen(false)} />}
     {pendingDelete && <Modal title="确认删除文章" onCancel={() => { if (!deleting) setPendingDelete(null) }}><p>将从磁盘删除「{pendingDelete.title}」。</p><p><code>{pendingDelete.relativePath}</code></p><p>文件会被直接移除。应用不会保留副本，也不能在这里撤销。未保存的恢复记录会一并清除。</p>{deleteError && <p role="alert">{deleteError}</p>}<div className="dialog-actions"><Button disabled={deleting} onClick={() => setPendingDelete(null)}>取消</Button><Button className="button-danger" disabled={deleting} onClick={() => void confirmDelete()}>{deleting ? '正在删除…' : '确认删除'}</Button></div></Modal>}
@@ -475,7 +475,6 @@ function ArticleInspector({ article, document, loading, error, onReveal }: { art
       {displayed.kind === 'ai-daily' && <><div className="property-section"><h4>要点 <span>{displayed.highlights.length}</span></h4>{displayed.highlights.length ? <ul className="highlights">{displayed.highlights.map((value, idx) => <li key={idx}>{value}</li>)}</ul> : <p>暂无要点</p>}</div><div className="property-section"><h4>工具</h4><div className="tag-list">{displayed.tools.length ? displayed.tools.map((value, idx) => <Badge key={`${value}-${idx}`}>{value}</Badge>) : <span className="muted">暂无工具</span>}</div></div></>}
       {!!displayed.issues.length && <div className="property-section article-issues"><h4><AlertCircle size={14} />字段提示</h4><ul>{displayed.issues.map((issue, idx) => <li key={idx}>{issue}</li>)}</ul></div>}
       {document && <details className="frontmatter-details"><summary>完整 Frontmatter</summary><pre>{JSON.stringify(document.frontmatter, null, 2)}</pre></details>}
-      <p className="local-state-note"><CircleHelp size={13} /><span>日期与 Git 状态来自本地文件，无法据此判断线上部署状态。</span></p>
     </>}</div>
   </>}</aside>
 }

@@ -73,7 +73,7 @@ test('article statistics follow content directories and open the same lists', as
     await page.screenshot({ path: testInfo.outputPath('stats-dark.png'), animations: 'disabled' })
     await page.screenshot({ path: path.resolve('docs/images/stats-dark.png'), animations: 'disabled' })
     await page.getByRole('button', { name: '切换浅色主题', exact: true }).click()
-    await expect(page.getByRole('region', { name: '分类排行', exact: true })).toContainText('不是只显示前几项')
+    await expect(page.getByRole('region', { name: '分类排行', exact: true })).not.toContainText('不是只显示前几项')
     await page.getByRole('button', { name: '下一页分类', exact: true }).click()
     await expect(page.getByRole('region', { name: '分类排行', exact: true })).toContainText('第 2 / 2 页，共 10 项')
     await page.getByLabel('搜索分类', { exact: true }).fill(longCategory)
