@@ -204,9 +204,9 @@ export const MuyaEditor = forwardRef<MuyaEditorHandle, Props>(function MuyaEdito
   }, [])
 
   /**
-   * 将当前段落按快捷键转换为目标块类型。
+   * 将当前块按快捷键转换为目标类型（支持段落和标题互相转换）。
    * 通过 Muya 内部的区块注册表 R（scrollPage.constructor）创建新区块，
-   * 并用 replaceWith 替换当前段落。
+   * 并用 replaceWith 替换当前块。
    */
   function handleBlockShortcut(event: KeyboardEvent) {
     if (!event.ctrlKey && !event.metaKey) return
@@ -218,7 +218,7 @@ export const MuyaEditor = forwardRef<MuyaEditorHandle, Props>(function MuyaEdito
     const muya = muyaRef.current
     if (!muya || disabledRef.current) return
 
-    // 获取当前选区，确认光标在段落内
+    // 获取当前选区，确认光标在块内
     const selection = (muya.editor as unknown as {
       selection: { getSelection: () => { anchorBlock: any; isSelectionInSameBlock: boolean } }
     }).selection.getSelection()
@@ -226,12 +226,27 @@ export const MuyaEditor = forwardRef<MuyaEditorHandle, Props>(function MuyaEdito
     const anchorBlock = selection?.anchorBlock
     if (!anchorBlock || !selection.isSelectionInSameBlock) return
 
-    // 段落的父块才是可替换的段落块
-    const paragraphBlock = anchorBlock.parent
-    if (!paragraphBlock || paragraphBlock.blockName !== 'paragraph') return
+    // 内容块的父块才是可替换的块（paragraph / atx-heading）
+    const parentBlock = anchorBlock.parent
+    if (!parentBlock) return
+    const blockName = parentBlock.blockName
 
-    // 获取当前段落文本（用于标题时保留文字）
+    // 仅处理段落和标题块
+    if (blockName !== 'paragraph' && blockName !== 'atx-heading') return
+
+    // 获取当前块中的文本内容
     const currentText = anchorBlock.text || ''
+
+    // 标题块：从文本中提取去掉 # 前缀后的实际文字
+    const isHeading = blockName === 'atx-heading'
+    const headingText = isHeading ? currentText.replace(/^#+\s*/, '') : currentText
+
+    // 如果目标类型与当前类型相同，不做任何事
+    if (label === 'paragraph' && blockName === 'paragraph') return
+    if (label.startsWith('atx-heading') && isHeading) {
+      const targetLevel = Number(label.split(' ')[1])
+      if (parentBlock.meta?.level === targetLevel) return
+    }
 
     event.preventDefault()
     event.stopPropagation()
@@ -248,23 +263,24 @@ export const MuyaEditor = forwardRef<MuyaEditorHandle, Props>(function MuyaEdito
     let newBlock: any = null
 
     if (label === 'paragraph') {
-      // 转换为普通段落
+      // 标题 → 段落（保留文字，去掉 # 前缀）
       const BlockClass = ScrollPageClass.loadBlock('paragraph')
-      newBlock = BlockClass.create(muya, { name: 'paragraph', text: currentText })
+      newBlock = BlockClass.create(muya, { name: 'paragraph', text: headingText })
     } else if (label.startsWith('atx-heading')) {
       const level = Number(label.split(' ')[1])
       const BlockClass = ScrollPageClass.loadBlock('atx-heading')
+      // 段落 → 标题 或 标题 → 标题：保留原有文字（去掉旧 # 前缀）
       newBlock = BlockClass.create(muya, {
         name: 'atx-heading',
         meta: { level },
-        text: '#'.repeat(level) + ' ' + currentText,
+        text: '#'.repeat(level) + ' ' + headingText,
       })
     }
 
     if (!newBlock) return
 
-    // 替换段落块并定位光标
-    paragraphBlock.replaceWith(newBlock, 'user')
+    // 替换块并定位光标
+    parentBlock.replaceWith(newBlock, 'user')
     const cursorTarget = newBlock.firstContentInDescendant()
     if (cursorTarget && typeof cursorTarget.setCursor === 'function') {
       cursorTarget.setCursor(cursorTarget.text.length, cursorTarget.text.length, true)
