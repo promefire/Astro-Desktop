@@ -9,6 +9,17 @@ Muya.use(ParagraphQuickInsertMenu)
 // Muya's Markdown parser expects LF; leave the original source in ArticleEditor.
 const editorMarkdown = (source: string) => source.replace(/\r\n|\r/g, '\n')
 
+/** 快捷键到块类型的映射（与菜单项的 shortKeyMap 一致，仅含主修饰键） */
+const SHORTCUT_LABELS: Record<string, string> = {
+  '0': 'paragraph',
+  '1': 'atx-heading 1',
+  '2': 'atx-heading 2',
+  '3': 'atx-heading 3',
+  '4': 'atx-heading 4',
+  '5': 'atx-heading 5',
+  '6': 'atx-heading 6',
+}
+
 export interface MuyaEditorHandle {
   undo(): void
   redo(): void
@@ -174,6 +185,7 @@ export const MuyaEditor = forwardRef<MuyaEditorHandle, Props>(function MuyaEdito
     return () => host.removeEventListener('drop', handleDrop)
   }, [])
 
+  // Ctrl+S 保存 + Ctrl/Cmd+0~6 快捷块转换
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
@@ -182,11 +194,82 @@ export const MuyaEditor = forwardRef<MuyaEditorHandle, Props>(function MuyaEdito
         event.preventDefault()
         event.stopPropagation()
         if (!disabledRef.current) onSaveRef.current()
+        return
       }
+      // 快捷块转换：Ctrl/Cmd + 0~6
+      handleBlockShortcut(event)
     }
     host.addEventListener('keydown', handleKeyDown, true)
     return () => host.removeEventListener('keydown', handleKeyDown, true)
   }, [])
+
+  /**
+   * 将当前段落按快捷键转换为目标块类型。
+   * 通过 Muya 内部的区块注册表 R（scrollPage.constructor）创建新区块，
+   * 并用 replaceWith 替换当前段落。
+   */
+  function handleBlockShortcut(event: KeyboardEvent) {
+    if (!event.ctrlKey && !event.metaKey) return
+    if (event.shiftKey || event.altKey) return
+
+    const label = SHORTCUT_LABELS[event.key]
+    if (!label) return
+
+    const muya = muyaRef.current
+    if (!muya || disabledRef.current) return
+
+    // 获取当前选区，确认光标在段落内
+    const selection = (muya.editor as unknown as {
+      selection: { getSelection: () => { anchorBlock: any; isSelectionInSameBlock: boolean } }
+    }).selection.getSelection()
+
+    const anchorBlock = selection?.anchorBlock
+    if (!anchorBlock || !selection.isSelectionInSameBlock) return
+
+    // 段落的父块才是可替换的段落块
+    const paragraphBlock = anchorBlock.parent
+    if (!paragraphBlock || paragraphBlock.blockName !== 'paragraph') return
+
+    // 获取当前段落文本（用于标题时保留文字）
+    const currentText = anchorBlock.text || ''
+
+    event.preventDefault()
+    event.stopPropagation()
+
+    // 通过 scrollPage 构造函数访问区块注册表 R
+    const scrollPage = muya.editor.scrollPage
+    if (!scrollPage) return
+    const ScrollPageClass = scrollPage.constructor as unknown as {
+      loadBlock: (name: string) => {
+        create: (muya: any, state: any) => any
+      }
+    }
+
+    let newBlock: any = null
+
+    if (label === 'paragraph') {
+      // 转换为普通段落
+      const BlockClass = ScrollPageClass.loadBlock('paragraph')
+      newBlock = BlockClass.create(muya, { name: 'paragraph', text: currentText })
+    } else if (label.startsWith('atx-heading')) {
+      const level = Number(label.split(' ')[1])
+      const BlockClass = ScrollPageClass.loadBlock('atx-heading')
+      newBlock = BlockClass.create(muya, {
+        name: 'atx-heading',
+        meta: { level },
+        text: '#'.repeat(level) + ' ' + currentText,
+      })
+    }
+
+    if (!newBlock) return
+
+    // 替换段落块并定位光标
+    paragraphBlock.replaceWith(newBlock, 'user')
+    const cursorTarget = newBlock.firstContentInDescendant()
+    if (cursorTarget && typeof cursorTarget.setCursor === 'function') {
+      cursorTarget.setCursor(cursorTarget.text.length, cursorTarget.text.length, true)
+    }
+  }
 
   return <div ref={hostRef} className="muya-editor-host" inert={props.disabled} aria-label="文章编辑器" />
 })
