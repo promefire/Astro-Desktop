@@ -402,7 +402,7 @@ function App() {
       </nav>
       <div className="sidebar-bottom">
         <NavLink to="/settings" className={({ isActive }) => cn('nav-item', isActive && 'is-active')} aria-label="项目设置" title="项目设置"><Settings2 size={17} /><span>项目设置</span></NavLink>
-        <button type="button" className="nav-item theme-nav-item" aria-label={settings.theme === 'dark' ? '切换浅色模式' : '切换深色模式'} title={settings.theme === 'dark' ? '切换浅色模式' : '切换深色模式'} disabled={!api || themeBusy} onClick={() => void changeTheme(settings.theme === 'dark' ? 'light' : 'dark')}>{settings.theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}<span>{settings.theme === 'dark' ? '切换浅色模式' : '切换深色模式'}</span></button>
+        <button type="button" className="nav-item theme-nav-item" aria-label={settings.theme === 'dark' ? '切换浅色模式' : '切换深色模式'} title={settings.theme === 'dark' ? '切换浅色模式' : '切换深色模式'} disabled={!api || themeBusy} onClick={() => void changeTheme(settings.theme === 'dark' ? 'light' : 'dark')}>{settings.theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}</button>
       </div>
       <button type="button" className="sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-expanded={sidebarOpen} aria-controls="app-sidebar" aria-label={sidebarOpen ? '收起侧边栏' : '展开侧边栏'} title={sidebarOpen ? '收起侧边栏' : '展开侧边栏'}>{sidebarOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}</button>
     </aside>
