@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
-import { Muya, ParagraphQuickInsertMenu } from '@muyajs/core'
+import { Muya, ParagraphQuickInsertMenu, zh } from '@muyajs/core'
 import '@muyajs/core/lib/core.css'
 
 // 注册 Marktext 同款 "/" 快捷插入菜单（WYSIWYG 模式）。
@@ -100,6 +100,7 @@ export const MuyaEditor = forwardRef<MuyaEditorHandle, Props>(function MuyaEdito
       autoPairBracket: true,
       autoPairMarkdownSyntax: true,
       autoPairQuote: true,
+      locale: zh,
     })
     muya.init()
     muya.on('json-change', ({ source }) => {
