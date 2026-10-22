@@ -12,10 +12,6 @@ export interface MetadataValues {
   tools: string[]
   top: string
   cover: string
-  author: string
-  sourceLink: string
-  licenseName: string
-  licenseUrl: string
 }
 
 function setOrDelete(document: ReturnType<typeof parseDocument>, key: string, value: unknown, required = false): void {
@@ -41,26 +37,23 @@ function frontmatterBody(block: string): { prefix: string; yaml: string; suffix:
 export function metadataFromArticle(article: Article): MetadataValues {
   return {
     title: article.title,
-    published: article.published ?? '',
+    published: article.published?.slice(0, 10) ?? '',
     category: article.category ?? '',
     tags: [...article.tags],
     description: article.description,
     summary: article.summary,
     highlights: [...article.highlights],
     tools: [...article.tools],
-    top: article.top === null ? '' : String(article.top),
-    cover: '', author: '', sourceLink: '', licenseName: '', licenseUrl: '',
+    top: article.top === null ? '' : String(article.top), cover: '',
   }
 }
 
 export function metadataFromDocument(article: Article, frontmatter: Record<string, unknown>): MetadataValues {
-  const value = (key: keyof MetadataValues) => typeof frontmatter[key] === 'string' ? frontmatter[key] as string : ''
   const list = (key: keyof MetadataValues) => Array.isArray(frontmatter[key]) ? (frontmatter[key] as unknown[]).filter((item): item is string => typeof item === 'string') : []
   return {
     ...metadataFromArticle(article),
-    cover: value('cover'), author: value('author'), sourceLink: value('sourceLink'),
-    licenseName: value('licenseName'), licenseUrl: value('licenseUrl'),
     highlights: list('highlights'), tools: list('tools'),
+    cover: typeof frontmatter.cover === 'string' ? frontmatter.cover : '',
     top: typeof frontmatter.top === 'number' && Number.isSafeInteger(frontmatter.top) ? String(frontmatter.top) : '',
   }
 }
@@ -89,7 +82,7 @@ export function updateFrontmatter(block: string, kind: ContentKind, values: Meta
       if (!Number.isSafeInteger(top)) throw new Error('置顶序号必须是整数。')
       document.set('top', top)
     } else document.delete('top')
-    for (const key of ['cover', 'author', 'sourceLink', 'licenseName', 'licenseUrl'] as const) setOrDelete(document, key, values[key])
+    setOrDelete(document, 'cover', values.cover)
   }
   return parts.prefix + document.toString({ lineWidth: 0 }) + parts.suffix
 }

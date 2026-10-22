@@ -496,12 +496,12 @@ function MetadataEditor({ article, document, onCancel, onSave }: { article: Arti
   }
   return <Modal title="编辑文章属性" onCancel={() => { if (!saving) onCancel() }}><p className="create-dialog-hint">正文和草稿由文件路径区分。保存时会移除旧的 draft 字段，并保留其他未知字段与注释。</p>
     <div className="draft-field"><label htmlFor="metadata-title">标题 *</label><Input id="metadata-title" value={values.title} onChange={event => update('title', event.target.value)} /></div>
-    <div className="draft-field"><label htmlFor="metadata-published">发布日期 *</label><Input id="metadata-published" value={values.published} onChange={event => update('published', event.target.value)} /></div>
+    <div className="draft-field"><label htmlFor="metadata-published">发布日期 *</label><Input id="metadata-published" type="date" value={values.published.slice(0, 10)} onChange={event => update('published', event.target.value)} /></div>
     <div className="draft-field"><label htmlFor="metadata-category">分类</label><Input id="metadata-category" value={values.category} onChange={event => update('category', event.target.value)} /></div>
     <div className="draft-field"><label htmlFor="metadata-tags">标签 <small>用逗号分隔</small></label><Input id="metadata-tags" value={tags} onChange={event => setTags(event.target.value)} /></div>
     <div className="draft-field"><label htmlFor="metadata-description">摘要</label><textarea className="input" id="metadata-description" rows={3} value={values.description} onChange={event => update('description', event.target.value)} /></div>
     <div className="draft-field"><label htmlFor="metadata-top">置顶序号 <small>可选整数</small></label><Input id="metadata-top" value={values.top} onChange={event => update('top', event.target.value)} inputMode="numeric" /></div>
-    {(['cover', 'author', 'sourceLink', 'licenseName', 'licenseUrl'] as const).map(key => <div className="draft-field" key={key}><label htmlFor={`metadata-${key}`}>{({ cover: '封面', author: '作者', sourceLink: '来源链接', licenseName: '许可证名称', licenseUrl: '许可证链接' } as Record<typeof key, string>)[key]}</label><Input id={`metadata-${key}`} value={values[key]} onChange={event => update(key, event.target.value)} /></div>)}
+    <div className="draft-field"><label htmlFor="metadata-cover">封面</label><Input id="metadata-cover" value={values.cover} onChange={event => update('cover', event.target.value)} /></div>
     {error && <div className="draft-error" role="alert"><AlertCircle size={16} /><span>{error}</span></div>}
     <div className="create-dialog-footer"><span>使用原文章的安全保存流程。</span><Button onClick={onCancel} disabled={saving}>取消</Button><Button variant="primary" onClick={() => void submit()} disabled={saving}>{saving ? <LoaderCircle size={15} className="spin" /> : <Check size={15} />}保存属性</Button></div>
   </Modal>
