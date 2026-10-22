@@ -4,9 +4,10 @@ import {
   AlertCircle, ArrowDownUp, ArrowUpRight, BookOpen, ChartColumn, Check, ChevronLeft, ChevronRight,
   Clock3, CloudUpload, File, FileText, Folder, FolderOpen, GitBranch, Globe, Layers3,
   LoaderCircle, Monitor, Moon, RefreshCw, Search,
-  Settings2, Sparkles, Sun, Tag, Trash2, X, Plus,
+  Settings2, Sparkles, Sun, Tag, Trash2, X, Plus, PenLine,
 } from 'lucide-react'
 import type { AppSettings, Article, ArticleDocument, ContentIndex, CreateDraftInput, DesktopApi, FileStatus, PreviewPhase, ProjectInfo, RecoveryIndex, Result, Theme } from '../../shared/contracts'
+import { metadataFromDocument, type MetadataValues } from './editor/frontmatter'
 import { categoryFromSelect, categorySelectValue, matchesArticle, summarize, tagFromSelect, tagSelectValue, type CategoryFilter, type LibraryQuery, type LibraryView, type TagFilter } from '../../shared/article-stats'
 import { Badge, Button, Input, cn } from './components/ui'
 import { CreateDraftDialog } from './components/CreateDraftDialog'
@@ -440,7 +441,7 @@ function App() {
                   <div className="pagination"><span>{filtered.length ? `${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, filtered.length)}` : '0'} / {filtered.length} 篇</span><div><Button size="icon" variant="ghost" aria-label="上一页" disabled={currentPage <= 1 || busy} onClick={() => setPage(currentPage - 1)}><ChevronLeft size={16} /></Button><span>{currentPage} / {totalPages}</span><Button size="icon" variant="ghost" aria-label="下一页" disabled={currentPage >= totalPages || busy} onClick={() => setPage(currentPage + 1)}><ChevronRight size={16} /></Button></div></div>
                 </section>
                 {selectedPath && (!document || busy || documentLoading ? <section className="editor-loading"><Button onClick={() => selectArticle(null)}><ChevronLeft size={16} />返回列表</Button><EmptyState icon={<FileText size={25} />} title={documentError ? '无法打开文章' : '正在读取文章'} description={documentError ?? '加载原始源码与恢复记录…'} /></section> : <ArticleEditor key={`${project.path}:${selectedPath}`} ref={editor} api={api} projectPath={project.path} document={document} htmlEnabled={settings.markdownHtml} onDirtyChange={reportDirty} onRecoveryChange={() => void loadRecoveries()} onSaved={saved => { setDocument(saved); setIndex(current => ({ ...current, articles: current.articles.map(article => article.relativePath === saved.article.relativePath ? saved.article : article) })) }} onPublished={followRelocatedArticle} onWithdrawn={followRelocatedArticle} onBack={() => requestLeave(() => selectArticle(null))} />)}
-                {selectedPath && <div className={cn('inspector-shell', !inspectorOpen && 'is-collapsed')}><button type="button" className="inspector-toggle" onClick={() => setInspectorOpen(!inspectorOpen)} aria-expanded={inspectorOpen} aria-controls="article-inspector" aria-label={inspectorOpen ? '收起文章属性' : '展开文章属性'} title={inspectorOpen ? '收起文章属性' : '展开文章属性'}>{inspectorOpen ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}</button>{inspectorOpen && <ArticleInspector article={selectedArticle} document={document} loading={documentLoading || busy} error={documentError} onReveal={() => selectedPath && void runAction(desktop => desktop.revealArticle(selectedPath))} />}</div>}
+                {selectedPath && <div className={cn('inspector-shell', !inspectorOpen && 'is-collapsed')}><button type="button" className="inspector-toggle" onClick={() => setInspectorOpen(!inspectorOpen)} aria-expanded={inspectorOpen} aria-controls="article-inspector" aria-label={inspectorOpen ? '收起文章属性' : '展开文章属性'} title={inspectorOpen ? '收起文章属性' : '展开文章属性'}>{inspectorOpen ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}</button>{inspectorOpen && <ArticleInspector article={selectedArticle} document={document} loading={documentLoading || busy} error={documentError} onReveal={() => selectedPath && void runAction(desktop => desktop.revealArticle(selectedPath))} onEditMetadata={values => editor.current?.updateMetadata(values) ?? Promise.resolve(false)} />}</div>}
               </main>}
 
       <footer className="statusbar"><div><span className={cn('status-dot', project && 'is-connected')} /><span>{busyAll ? '正在处理本地项目…' : project ? '已连接本地项目' : '尚未连接项目'}</span>{project && <span className="status-path" title={project.path}>{project.path}</span>}</div><div>{index.scannedAt && <span>更新于 {new Date(index.scannedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>}</div></footer>
@@ -464,19 +465,46 @@ function WelcomeView({ settings, project, busy, onOpen, onRecent, onForget, onCo
   </div></main>
 }
 
-function ArticleInspector({ article, document, loading, error, onReveal }: { article: Article | null; document: ArticleDocument | null; loading: boolean; error: string | null; onReveal: () => void }) {
+function ArticleInspector({ article, document, loading, error, onReveal, onEditMetadata }: { article: Article | null; document: ArticleDocument | null; loading: boolean; error: string | null; onReveal: () => void; onEditMetadata: (values: MetadataValues) => Promise<boolean> }) {
   const displayed = document?.article ?? article
-  return <aside className="inspector" id="article-inspector" aria-label="文章详情"><div className="inspector-heading"><h2>文章属性</h2><Badge>已保存版本</Badge></div>{!displayed ? <div className="inspector-placeholder"><div className="document-outline"><FileText size={34} strokeWidth={1.25} /></div><h3>正在读取文章属性</h3><p>属性来自磁盘上的已保存版本，<br />不包含编辑区里尚未保存的内容。</p></div> : <>
+  const [editing, setEditing] = useState(false)
+  return <aside className="inspector" id="article-inspector" aria-label="文章详情"><div className="inspector-heading"><h2>文章属性</h2><div className="inspector-heading-actions"><Badge>已保存版本</Badge>{displayed?.kind !== 'ai-daily' && document && <Button size="icon" variant="ghost" aria-label="编辑文章属性" title="编辑文章属性" onClick={() => setEditing(true)}><PenLine size={15} /></Button>}</div></div>{!displayed ? <div className="inspector-placeholder"><div className="document-outline"><FileText size={34} strokeWidth={1.25} /></div><h3>正在读取文章属性</h3><p>属性来自磁盘上的已保存版本，<br />不包含编辑区里尚未保存的内容。</p></div> : <>
     <div className="inspector-title"><Badge tone={displayed.kind === 'ai-daily' ? 'accent' : 'neutral'}>{kindLabel(displayed)}</Badge><h3>{displayed.title}</h3><button className="file-location" onClick={onReveal} aria-label="在资源管理器中定位文章" title="在资源管理器中定位文章"><FolderOpen size={13} /><span>{displayed.relativePath}</span><ArrowUpRight size={13} /></button></div>
     <div className="inspector-body" role="region" aria-label="文章属性">{loading ? <div className="detail-feedback"><LoaderCircle size={19} className="spin" /><span>正在读取文件…</span></div> : error ? <div className="detail-feedback is-error" role="alert"><AlertCircle size={19} /><p>{error}</p></div> : <>
-      <dl className="property-list"><Property label="日期">{dateLabel(displayed.published)}</Property><Property label="分类">{displayed.category ?? '未设置'}</Property><Property label="draft 字段">{displayed.kind === 'ai-daily' ? '不适用' : displayed.issues.some(issue => issue.startsWith('draft 必须是布尔值')) ? '字段无效' : displayed.draft === null ? '未设置' : displayed.draft ? 'true' : 'false'}</Property><Property label="Git 状态"><Badge tone={displayed.fileStatus === 'conflict' ? 'warning' : 'neutral'}>{statusLabels[displayed.fileStatus]}</Badge></Property>{displayed.kind !== 'ai-daily' && <Property label="置顶序号">{displayed.top ?? '未设置'}</Property>}<Property label="文件大小">{byteLabel(displayed.size)}</Property><Property label="本地修改">{dateLabel(displayed.modifiedAt, true)}</Property></dl>
+      <dl className="property-list"><Property label="日期">{dateLabel(displayed.published)}</Property>{displayed.kind !== 'ai-daily' && <Property label="分类">{displayed.category ?? '未设置'}</Property>}<Property label="Git 状态"><Badge tone={displayed.fileStatus === 'conflict' ? 'warning' : 'neutral'}>{statusLabels[displayed.fileStatus]}</Badge></Property>{displayed.kind !== 'ai-daily' && <Property label="置顶序号">{displayed.top ?? '未设置'}</Property>}<Property label="文件大小">{byteLabel(displayed.size)}</Property><Property label="本地修改">{dateLabel(displayed.modifiedAt, true)}</Property></dl>
       <div className="property-section"><h4>标签</h4><div className="tag-list">{displayed.tags.length ? displayed.tags.map((value, idx) => <Badge key={`${value}-${idx}`}>{value}</Badge>) : <span className="muted">暂无标签</span>}</div></div>
       <div className="property-section"><h4>{displayed.kind === 'ai-daily' ? '日报摘要' : '文章描述'}</h4><p>{(displayed.kind === 'ai-daily' ? displayed.summary : displayed.description) || '暂无内容'}</p></div>
       {displayed.kind === 'ai-daily' && <><div className="property-section"><h4>要点 <span>{displayed.highlights.length}</span></h4>{displayed.highlights.length ? <ul className="highlights">{displayed.highlights.map((value, idx) => <li key={idx}>{value}</li>)}</ul> : <p>暂无要点</p>}</div><div className="property-section"><h4>工具</h4><div className="tag-list">{displayed.tools.length ? displayed.tools.map((value, idx) => <Badge key={`${value}-${idx}`}>{value}</Badge>) : <span className="muted">暂无工具</span>}</div></div></>}
       {!!displayed.issues.length && <div className="property-section article-issues"><h4><AlertCircle size={14} />字段提示</h4><ul>{displayed.issues.map((issue, idx) => <li key={idx}>{issue}</li>)}</ul></div>}
       {document && <details className="frontmatter-details"><summary>完整 Frontmatter</summary><pre>{JSON.stringify(document.frontmatter, null, 2)}</pre></details>}
-    </>}</div>
-  </>}</aside>
+  </>}</div>
+  </>}{editing && document && displayed && displayed.kind !== 'ai-daily' && <MetadataEditor article={displayed} document={document} onCancel={() => setEditing(false)} onSave={async values => { const saved = await onEditMetadata(values); if (saved) setEditing(false); return saved }} />}</aside>
+}
+
+function MetadataEditor({ article, document, onCancel, onSave }: { article: Article; document: ArticleDocument; onCancel: () => void; onSave: (values: MetadataValues) => Promise<boolean> }) {
+  const [values, setValues] = useState(() => metadataFromDocument(article, document.frontmatter))
+  const [tags, setTags] = useState(values.tags.join(', '))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const update = (key: keyof MetadataValues, value: string) => setValues(current => ({ ...current, [key]: value }))
+  const submit = async () => {
+    if (!values.title.trim() || !values.published.trim()) { setError('标题和日期不能为空。'); return }
+    setSaving(true); setError('')
+    try { if (!await onSave({ ...values, tags: tags.split(',').map(value => value.trim()).filter(Boolean) })) setError('保存失败，请查看编辑器中的错误提示。') }
+    catch (cause) { setError(cause instanceof Error ? cause.message : '保存失败，请重试。') }
+    finally { setSaving(false) }
+  }
+  return <Modal title="编辑文章属性" onCancel={() => { if (!saving) onCancel() }}><p className="create-dialog-hint">正文和草稿由文件路径区分。保存时会移除旧的 draft 字段，并保留其他未知字段与注释。</p>
+    <div className="draft-field"><label htmlFor="metadata-title">标题 *</label><Input id="metadata-title" value={values.title} onChange={event => update('title', event.target.value)} /></div>
+    <div className="draft-field"><label htmlFor="metadata-published">发布日期 *</label><Input id="metadata-published" value={values.published} onChange={event => update('published', event.target.value)} /></div>
+    <div className="draft-field"><label htmlFor="metadata-category">分类</label><Input id="metadata-category" value={values.category} onChange={event => update('category', event.target.value)} /></div>
+    <div className="draft-field"><label htmlFor="metadata-tags">标签 <small>用逗号分隔</small></label><Input id="metadata-tags" value={tags} onChange={event => setTags(event.target.value)} /></div>
+    <div className="draft-field"><label htmlFor="metadata-description">摘要</label><textarea className="input" id="metadata-description" rows={3} value={values.description} onChange={event => update('description', event.target.value)} /></div>
+    <div className="draft-field"><label htmlFor="metadata-top">置顶序号 <small>可选整数</small></label><Input id="metadata-top" value={values.top} onChange={event => update('top', event.target.value)} inputMode="numeric" /></div>
+    {(['cover', 'author', 'sourceLink', 'licenseName', 'licenseUrl'] as const).map(key => <div className="draft-field" key={key}><label htmlFor={`metadata-${key}`}>{({ cover: '封面', author: '作者', sourceLink: '来源链接', licenseName: '许可证名称', licenseUrl: '许可证链接' } as Record<typeof key, string>)[key]}</label><Input id={`metadata-${key}`} value={values[key]} onChange={event => update(key, event.target.value)} /></div>)}
+    {error && <div className="draft-error" role="alert"><AlertCircle size={16} /><span>{error}</span></div>}
+    <div className="create-dialog-footer"><span>使用原文章的安全保存流程。</span><Button onClick={onCancel} disabled={saving}>取消</Button><Button variant="primary" onClick={() => void submit()} disabled={saving}>{saving ? <LoaderCircle size={15} className="spin" /> : <Check size={15} />}保存属性</Button></div>
+  </Modal>
 }
 
 function Property({ label, children }: { label: string; children: ReactNode }) { return <div><dt>{label}</dt><dd>{children}</dd></div> }

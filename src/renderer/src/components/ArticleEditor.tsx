@@ -7,9 +7,10 @@ import { SourceEditor, type SourceEditorHandle } from './SourceEditor'
 import { Modal } from './Modal'
 import { imageUrlKey, markdownImages, replaceMarkdownImages } from '../../../shared/markdown-images'
 import { sameMarkdown, splitMarkdownSource } from '../editor/source-state'
+import { updateFrontmatter, type MetadataValues } from '../editor/frontmatter'
 import '../editor/editor.css'
 
-export interface ArticleEditorHandle { save(): Promise<boolean>; discard(): Promise<boolean>; isDirty(): boolean; isBusy(): boolean }
+export interface ArticleEditorHandle { save(): Promise<boolean>; discard(): Promise<boolean>; updateMetadata(values: MetadataValues): Promise<boolean>; isDirty(): boolean; isBusy(): boolean }
 interface Props {
   document: ArticleDocument; projectPath: string; api: DesktopApi; htmlEnabled: boolean;
   onSaved(document: ArticleDocument): void; onPublished(document: ArticleDocument): void; onWithdrawn(document: ArticleDocument): void; onBack(): void;
@@ -142,6 +143,18 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
     } catch (cause) { setError(message(cause)); onRecoveryChange(); return false }
     finally { workingRef.current = false; setWorking(false) }
   }
+  const updateMetadata = async (values: MetadataValues): Promise<boolean> => {
+    if (workingRef.current || loadingRecovery || recovery || externalSessionRef.current) return false
+    try {
+      const next = updateFrontmatter(frontmatterRef.current, document.article.kind, values)
+      frontmatterRef.current = next
+      reportDirty(true)
+      return await save()
+    } catch (cause) {
+      setError(message(cause))
+      return false
+    }
+  }
   const discard = async (): Promise<boolean> => {
     if (workingRef.current) return false
     workingRef.current = true; setWorking(true); stopTimer()
@@ -155,7 +168,7 @@ export const ArticleEditor = forwardRef<ArticleEditorHandle, Props>(function Art
     } catch (cause) { setError(message(cause)); return false }
     finally { workingRef.current = false; setWorking(false) }
   }
-  useImperativeHandle(ref, () => ({ save, discard, isDirty: () => dirtyRef.current, isBusy: () => workingRef.current }))
+  useImperativeHandle(ref, () => ({ save, discard, updateMetadata, isDirty: () => dirtyRef.current, isBusy: () => workingRef.current }))
 
   // 每 1 分钟自动保存（save 内部已做幂等判断：未修改/正在保存/弹窗时跳过）
   useEffect(() => {
